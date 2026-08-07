@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trade Activity</title>
+  <style>
+    :root { font-family: Inter, system-ui, sans-serif; color: #18202a; background: #f5f7f9; }
+    body { margin: 0; padding: 32px; }
+    main { width: 100%; }
+    header, .filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    header { justify-content: space-between; margin-bottom: 24px; }
+    h1 { margin: 0; font-size: 26px; }
+    nav { display: flex; gap: 8px; }
+    nav a { color: #647080; text-decoration: none; padding: 8px 11px; border-radius: 7px; }
+    nav a.active { color: #18202a; background: white; }
+    button, input, select { border: 1px solid #d7dde4; border-radius: 7px; padding: 9px 11px; background: white; }
+    button { cursor: pointer; }
+    button.primary { color: white; background: #111827; border-color: #111827; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .filters { margin-bottom: 14px; }
+    .filters input[type="search"] { min-width: 220px; }
+    .table { width: 100%; background: white; border: 1px solid #e3e7eb; border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+    th, td { padding: 11px 14px; border-bottom: 1px solid #dfe4e8; text-align: right; }
+    th { color: #566273; background: #eef2f5; font-size: 12px; text-transform: uppercase; cursor: pointer; }
+    tbody tr:nth-child(even) { background: #f7f9fb; }
+    tbody tr:hover { background: #eaf0f5; }
+    th:first-child, th:nth-child(2), th:nth-child(3), th:nth-child(4), td:first-child, td:nth-child(2), td:nth-child(3), td:nth-child(4) { text-align: left; }
+    tr:last-child td { border-bottom: 0; }
+    .long, .closed { color: #08783e; }
+    .short { color: #c02d2d; }
+    .open { color: #b56a00; }
+    #status { color: #647080; font-size: 14px; }
+    @media (max-width: 700px) { body { padding: 16px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Позиции T‑Bank</h1><span id="summary"></span></div>
+    <nav><a class="active" href="/">Позиции</a><a href="/monthly">По месяцам</a></nav>
+    <button class="primary" id="sync">Синхронизировать</button>
+  </header>
+
+  <div class="filters">
+    <select id="account"><option value="">Все счета</option></select>
+    <select id="direction"><option value="">Лонг и шорт</option><option value="long">Лонг</option><option value="short">Шорт</option></select>
+    <select id="status"><option value="">Все позиции</option><option value="closed">Закрытые</option><option value="open">Открытые</option></select>
+    <input id="from" type="date" title="Дата входа от">
+    <input id="to" type="date" title="Дата входа до">
+    <input id="search" type="search" placeholder="Тикер или инструмент">
+  </div>
+
+  <div class="table">
+    <table>
+      <thead><tr>
+        <th data-sort="date">Вход</th><th data-sort="exit">Выход</th><th data-sort="account">Счёт</th>
+        <th data-sort="ticker">Инструмент</th><th data-sort="direction">Направление</th>
+        <th data-sort="quantity">Объём входа</th><th>Остаток</th>
+        <th data-sort="entry">Цена входа</th><th>Цена выхода</th><th>Результат</th>
+        <th>Комиссия</th><th>Чистыми</th><th data-sort="status">Статус</th><th>Ордеров</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const state = { sort: "date", direction_sort: "desc" };
+  const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 9 });
+  const price = (value, precision) => new Intl.NumberFormat("ru-RU", { maximumFractionDigits: precision }).format(value);
+  const rubles = value => value === null ? "—" : `${number.format(value)} ₽`;
+  const date = value => value ? new Date(value).toLocaleString("ru-RU") : "—";
+
+  async function loadAccounts() {
+    const accounts = await fetch("/api/accounts").then(response => response.json());
+    $("account").innerHTML = '<option value="">Все счета</option>' + accounts
+      .map(account => `<option value="${account.id}">${account.name}</option>`).join("");
+  }
+
+  async function loadPositions() {
+    const params = new URLSearchParams(state);
+    for (const id of ["account", "direction", "status", "from", "to", "search"]) {
+      if ($(id).value) params.set(id, $(id).value);
+    }
+    const positions = await fetch(`/api/trades?${params}`).then(response => response.json());
+    $("rows").innerHTML = positions.map(position => `<tr>
+      <td>${date(position.entry_at)}</td><td>${date(position.exit_at)}</td><td>${position.account_name}</td>
+      <td title="${position.instrument_name}">${position.ticker || position.instrument_name || position.instrument_uid}</td>
+      <td class="${position.direction}">${position.direction === "long" ? "Лонг" : "Шорт"}</td>
+      <td>${number.format(position.entry_quantity)}</td><td>${number.format(position.remaining)}</td>
+      <td>${price(position.entry_price, position.price_precision)} ${position.currency}</td>
+      <td>${position.exit_price === null ? "—" : `${price(position.exit_price, position.price_precision)} ${position.currency}`}</td>
+      <td>${rubles(position.gross_result)}</td><td>${rubles(position.commission)}</td><td>${rubles(position.net_result)}</td>
+      <td class="${position.status}">${position.status === "closed" ? "Закрыта" : "Открыта"}</td>
+      <td>${position.order_count}</td>
+    </tr>`).join("");
+    $("summary").textContent = `Позиций: ${positions.length}`;
+  }
+
+  for (const id of ["account", "direction", "status", "from", "to"]) $(id).addEventListener("change", loadPositions);
+  $("search").addEventListener("input", loadPositions);
+  document.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => {
+    state.direction_sort = state.sort === th.dataset.sort && state.direction_sort === "desc" ? "asc" : "desc";
+    state.sort = th.dataset.sort;
+    loadPositions();
+  }));
+
+  $("sync").addEventListener("click", async () => {
+    $("sync").disabled = true;
+    $("summary").textContent = "Синхронизация…";
+    const response = await fetch("/api/sync", { method: "POST" });
+    const result = await response.json();
+    $("sync").disabled = false;
+    if (!response.ok) return $("summary").textContent = result.error;
+    await loadAccounts();
+    await loadPositions();
+  });
+
+  loadAccounts();
+  loadPositions();
+</script>
+</body>
+</html>

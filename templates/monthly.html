@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Помесячный отчёт</title>
+  <style>
+    :root { font-family: Inter, system-ui, sans-serif; color: #18202a; background: #f5f7f9; }
+    body { margin: 0; padding: 32px; }
+    main { width: 100%; }
+    header, .filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    header { justify-content: space-between; margin-bottom: 24px; }
+    h1 { margin: 0; font-size: 26px; }
+    nav { display: flex; gap: 8px; }
+    nav a { color: #647080; text-decoration: none; padding: 8px 11px; border-radius: 7px; }
+    nav a.active { color: #18202a; background: white; }
+    select, input, button { border: 1px solid #d7dde4; border-radius: 7px; padding: 9px 11px; background: white; }
+    button { cursor: pointer; }
+    label { display: flex; align-items: center; gap: 7px; color: #647080; font-size: 14px; }
+    .filters { margin-bottom: 14px; }
+    .totals { display: flex; align-items: center; gap: 20px; margin-left: auto; padding: 9px 14px; background: #eef2f5; border: 1px solid #dfe4e8; border-radius: 8px; }
+    .metric { display: flex; align-items: baseline; gap: 7px; color: #647080; font-size: 14px; }
+    .metric strong { color: #18202a; font-size: 17px; }
+    .table { width: 100%; background: white; border: 1px solid #e3e7eb; border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+    th, td { padding: 12px 16px; border-bottom: 1px solid #dfe4e8; text-align: right; }
+    th { color: #566273; background: #eef2f5; font-size: 12px; text-transform: uppercase; }
+    tbody tr:nth-child(even) { background: #f7f9fb; }
+    tbody tr:hover { background: #eaf0f5; }
+    th:first-child, td:first-child { text-align: left; }
+    tr:last-child td { border-bottom: 0; }
+    .positive { color: #08783e; }
+    .negative { color: #c02d2d; }
+    .metric strong.positive { color: #08783e; }
+    .metric strong.negative { color: #c02d2d; }
+    #summary { color: #647080; font-size: 14px; }
+    @media (max-width: 700px) { body { padding: 16px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Помесячный отчёт</h1><span id="summary"></span></div>
+    <nav><a href="/">Позиции</a><a class="active" href="/monthly">По месяцам</a></nav>
+  </header>
+
+  <div class="filters">
+    <select id="account"><option value="">Все счета</option></select>
+    <select id="ticker_mode">
+      <option value="all">Все тикеры</option>
+      <option value="only">Только инструмент</option>
+      <option value="exclude">Исключить инструмент</option>
+    </select>
+    <select id="ticker" disabled></select>
+    <label>С <input id="month_from" type="month"></label>
+    <label>По <input id="month_to" type="month"></label>
+    <button id="clear" type="button">Очистить фильтры</button>
+    <div class="totals">
+      <span class="metric">Чистыми <strong id="total_value">0,00 ₽</strong></span>
+      <span class="metric">Винрейт <strong id="win_rate_value">0,00%</strong></span>
+    </div>
+  </div>
+
+  <div class="table">
+    <table>
+      <thead><tr>
+        <th>Месяц</th><th>Позиций</th><th>Прибыльных</th><th>Убыточных</th>
+        <th>Винрейт</th><th>Результат</th><th>Комиссия</th><th>Чистыми</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const money = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const monthName = value => new Date(`${value}-01T00:00:00`).toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  const resultClass = value => value > 0 ? "positive" : value < 0 ? "negative" : "";
+  const filterIds = ["account", "ticker_mode", "ticker", "month_from", "month_to"];
+
+  function currentFilters() {
+    return Object.fromEntries(filterIds.map(id => [id, $(id).value]));
+  }
+
+  async function saveFilters() {
+    await fetch("/api/monthly-filters", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(currentFilters()),
+    });
+  }
+
+  async function loadAccounts() {
+    const accounts = await fetch("/api/accounts").then(response => response.json());
+    $("account").innerHTML = '<option value="">Все счета</option>' + accounts
+      .map(account => `<option value="${account.id}">${account.name}</option>`).join("");
+  }
+
+  async function loadTickers() {
+    const params = new URLSearchParams();
+    if ($("account").value) params.set("account", $("account").value);
+    const tickers = await fetch(`/api/tickers?${params}`).then(response => response.json());
+    $("ticker").innerHTML = tickers.map(ticker => `<option value="${ticker}">${ticker}</option>`).join("");
+  }
+
+  async function loadReport() {
+    const params = new URLSearchParams();
+    if ($("account").value) params.set("account", $("account").value);
+    if ($("ticker_mode").value !== "all" && $("ticker").value) {
+      params.set("ticker_mode", $("ticker_mode").value);
+      params.set("ticker", $("ticker").value);
+    }
+    if ($("month_from").value) params.set("month_from", $("month_from").value);
+    if ($("month_to").value) params.set("month_to", $("month_to").value);
+    const months = await fetch(`/api/monthly?${params}`).then(response => response.json());
+    $("rows").innerHTML = months.map(row => `<tr>
+      <td>${monthName(row.month)}</td><td>${row.positions}</td><td>${row.wins}</td><td>${row.losses}</td>
+      <td>${money.format(row.win_rate)}%</td>
+      <td class="${resultClass(row.gross_result)}">${money.format(row.gross_result)} ₽</td>
+      <td>${money.format(row.commission)} ₽</td>
+      <td class="${resultClass(row.net_result)}">${money.format(row.net_result)} ₽</td>
+    </tr>`).join("");
+    const total = months.reduce((sum, row) => sum + row.net_result, 0);
+    const positions = months.reduce((sum, row) => sum + row.positions, 0);
+    const wins = months.reduce((sum, row) => sum + row.wins, 0);
+    const winRate = positions ? wins / positions * 100 : 0;
+    $("total_value").textContent = `${money.format(total)} ₽`;
+    $("total_value").className = resultClass(total);
+    $("win_rate_value").textContent = `${money.format(winRate)}%`;
+    $("summary").textContent = `Месяцев: ${months.length}`;
+  }
+
+  $("account").addEventListener("change", async () => {
+    await loadTickers();
+    await saveFilters();
+    loadReport();
+  });
+  $("ticker_mode").addEventListener("change", async () => {
+    $("ticker").disabled = $("ticker_mode").value === "all";
+    await saveFilters();
+    loadReport();
+  });
+  for (const id of ["ticker", "month_from", "month_to"]) {
+    $(id).addEventListener("change", async () => {
+      await saveFilters();
+      loadReport();
+    });
+  }
+
+  $("clear").addEventListener("click", async () => {
+    $("account").value = "";
+    $("ticker_mode").value = "all";
+    $("month_from").value = "";
+    $("month_to").value = "";
+    $("ticker").disabled = true;
+    await loadTickers();
+    await fetch("/api/monthly-filters", { method: "DELETE" });
+    loadReport();
+  });
+
+  async function initialize() {
+    await loadAccounts();
+    const saved = await fetch("/api/monthly-filters").then(response => response.json());
+    $("account").value = saved.account || "";
+    $("ticker_mode").value = saved.ticker_mode || "all";
+    $("month_from").value = saved.month_from || "";
+    $("month_to").value = saved.month_to || "";
+    await loadTickers();
+    $("ticker").value = saved.ticker || $("ticker").value;
+    $("ticker").disabled = $("ticker_mode").value === "all";
+    loadReport();
+  }
+
+  initialize();
+</script>
+</body>
+</html>
