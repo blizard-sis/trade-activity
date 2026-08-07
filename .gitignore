@@ -1,10 +1,15 @@
-# конфигурационные файлы
+# Локальная конфигурация
 config.json
-# файлы виртуального окружения
+
+# Окружение Python
 .venv/
 venv/
-# кеши
 __pycache__/
 *.pyc
-# базы данных
+
+# Локальная база
 *.sqlite3
+
+# Frontend
+frontend/node_modules/
+frontend/dist/

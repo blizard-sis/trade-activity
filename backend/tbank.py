@@ -2,10 +2,10 @@ from decimal import Decimal
 
 import truststore
 
+
 truststore.inject_into_ssl()
 
 import requests
-
 
 API_URL = "https://invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1"
 TRADE_TYPES = [
@@ -21,8 +21,9 @@ TRADE_TYPES = [
 def money(value):
     if not value:
         return 0.0
-    amount = Decimal(value.get("units", "0")) + Decimal(value.get("nano", 0)) / 1_000_000_000
-    return float(amount)
+    units = Decimal(value.get("units", "0"))
+    nano = Decimal(value.get("nano", 0)) / 1_000_000_000
+    return float(units + nano)
 
 
 class TBankClient:
@@ -39,45 +40,46 @@ class TBankClient:
         return response.json()
 
     def accounts(self):
-        data = self._post("UsersService", "GetAccounts", {"status": "ACCOUNT_STATUS_ALL"})
-        return data.get("accounts", [])
+        response = self._post("UsersService", "GetAccounts", {"status": "ACCOUNT_STATUS_ALL"})
+        return response.get("accounts", [])
 
     def operations(self, account_id):
         cursor = ""
         while True:
-            payload = {
+            response = self._post("OperationsService", "GetOperationsByCursor", {
                 "accountId": account_id,
                 "cursor": cursor,
                 "limit": 1000,
                 "operationTypes": TRADE_TYPES,
                 "state": "OPERATION_STATE_EXECUTED",
                 "withoutTrades": False,
-            }
-            page = self._post("OperationsService", "GetOperationsByCursor", payload)
-            yield from page.get("items", [])
-            if not page.get("hasNext"):
-                break
-            cursor = page["nextCursor"]
+            })
+            yield from response.get("items", [])
+            if not response.get("hasNext"):
+                return
+            cursor = response["nextCursor"]
 
     def instrument(self, uid):
-        data = self._post("InstrumentsService", "FindInstrument", {"query": uid})
-        instruments = data.get("instruments", [])
-        exact = next((item for item in instruments if item.get("uid") == uid), None)
-        return exact or (instruments[0] if instruments else {})
+        response = self._post("InstrumentsService", "FindInstrument", {"query": uid})
+        instruments = response.get("instruments", [])
+        exact_match = next((item for item in instruments if item.get("uid") == uid), None)
+        return exact_match or (instruments[0] if instruments else {})
 
 
 def operation_trades(account_id, operation, instrument):
     trades = operation.get("trades") or operation.get("tradesInfo", {}).get("trades", [])
     total_quantity = sum(int(trade.get("quantity", 0)) for trade in trades)
-    commission = money(operation.get("commission"))
-    payment = money(operation.get("payment"))
     side = "sell" if "SELL" in operation.get("type", "") else "buy"
 
     for index, trade in enumerate(trades):
         quantity = int(trade.get("quantity", 0))
         yield {
             "account_id": account_id,
-            "trade_id": trade.get("tradeId") or trade.get("num") or f'{operation["id"]}:{index}',
+            "trade_id": (
+                trade.get("tradeId")
+                or trade.get("num")
+                or f'{operation["id"]}:{index}'
+            ),
             "operation_id": operation.get("id", ""),
             "instrument_uid": operation.get("instrumentUid", ""),
             "ticker": instrument.get("ticker", ""),
@@ -86,9 +88,13 @@ def operation_trades(account_id, operation, instrument):
             "quantity": quantity,
             "price": money(trade.get("price")),
             "currency": trade.get("price", {}).get("currency", ""),
-            "commission": commission * quantity / total_quantity if total_quantity else 0,
+            "commission": _allocate(operation.get("commission"), quantity, total_quantity),
             "commission_currency": operation.get("commission", {}).get("currency", ""),
-            "payment": payment * quantity / total_quantity if total_quantity else 0,
+            "payment": _allocate(operation.get("payment"), quantity, total_quantity),
             "payment_currency": operation.get("payment", {}).get("currency", ""),
             "executed_at": trade.get("dateTime") or trade.get("date") or operation.get("date", ""),
         }
+
+
+def _allocate(value, quantity, total_quantity):
+    return money(value) * quantity / total_quantity if total_quantity else 0

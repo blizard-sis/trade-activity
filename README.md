@@ -1,16 +1,28 @@
 # Trade Activity
 
-Локальная история сделок из T‑Invest API: синхронизация в SQLite и просмотр в веб-таблице.
+Локальная история сделок T‑Bank с группировкой позиций и помесячным отчётом.
 
-## Запуск
+## Структура
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+```text
+backend/          Flask API, SQLite, T‑Bank и расчёты
+frontend/src/     React-интерфейс
+app.py            запуск приложения
+config.json       локальные настройки и токен
 ```
 
-Запишите read-only токен T‑Invest API в `config.json`:
+## Первый запуск
+
+```powershell
+python -m venv venv
+venv\Scripts\python.exe -m pip install -r requirements.txt
+Set-Location frontend
+npm install
+npm run build
+Set-Location ..
+```
+
+Добавьте read-only токен T‑Invest API в `config.json`:
 
 ```json
 {
@@ -19,12 +31,27 @@ pip install -r requirements.txt
 }
 ```
 
-Затем:
+Запуск:
 
 ```powershell
-python app.py
+venv\Scripts\python.exe app.py
 ```
 
-Откройте <http://127.0.0.1:8000> и нажмите «Синхронизировать».
+Откройте <http://127.0.0.1:8000>.
 
-Данные сохраняются в `trade_activity.sqlite3`. Повторная синхронизация обновляет сделки без дублей.
+## Разработка фронтенда
+
+Flask и Vite запускаются в двух терминалах:
+
+```powershell
+venv\Scripts\python.exe app.py
+```
+
+```powershell
+Set-Location frontend
+npm run dev
+```
+
+Интерфейс разработки: <http://127.0.0.1:5173>. Vite перенаправляет API-запросы во Flask.
+
+После изменений соберите production-версию командой `npm run build`.

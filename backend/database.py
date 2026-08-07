@@ -1,15 +1,23 @@
 import sqlite3
-from pathlib import Path
+
+from .config import ROOT
 
 
-DATABASE = Path(__file__).with_name("trade_activity.sqlite3")
+DATABASE = ROOT / "trade_activity.sqlite3"
+TRADE_FIELDS = (
+    "account_id", "trade_id", "operation_id", "instrument_uid", "ticker",
+    "instrument_name", "side", "quantity", "price", "currency", "commission",
+    "commission_currency", "payment", "payment_currency", "executed_at",
+)
+
+
 def connect():
     connection = sqlite3.connect(DATABASE)
     connection.row_factory = sqlite3.Row
     return connection
 
 
-def init_database():
+def initialize():
     with connect() as db:
         db.executescript(
             """
@@ -45,20 +53,31 @@ def init_database():
                 value TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS position_notes (
+                position_id TEXT PRIMARY KEY,
+                entry_note TEXT NOT NULL DEFAULT '',
+                exit_note TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE INDEX IF NOT EXISTS trades_date ON trades(executed_at);
             CREATE INDEX IF NOT EXISTS trades_ticker ON trades(ticker);
             """
         )
+        _migrate_trades(db)
+        db.execute("PRAGMA optimize")
 
-        columns = {row["name"] for row in db.execute("PRAGMA table_info(trades)")}
-        migrations = {
-            "commission_currency": "TEXT NOT NULL DEFAULT ''",
-            "payment": "REAL NOT NULL DEFAULT 0",
-            "payment_currency": "TEXT NOT NULL DEFAULT ''",
-        }
-        for name, definition in migrations.items():
-            if name not in columns:
-                db.execute(f"ALTER TABLE trades ADD COLUMN {name} {definition}")
+
+def _migrate_trades(db):
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(trades)")}
+    migrations = {
+        "commission_currency": "TEXT NOT NULL DEFAULT ''",
+        "payment": "REAL NOT NULL DEFAULT 0",
+        "payment_currency": "TEXT NOT NULL DEFAULT ''",
+    }
+    for name, definition in migrations.items():
+        if name not in columns:
+            db.execute(f"ALTER TABLE trades ADD COLUMN {name} {definition}")
 
 
 def save_account(account):
@@ -72,50 +91,46 @@ def save_account(account):
         db.execute(
             """
             INSERT INTO accounts VALUES (?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET name=excluded.name, type=excluded.type, status=excluded.status
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                type = excluded.type,
+                status = excluded.status
             """,
             values,
         )
 
 
 def save_trades(trades):
-    fields = (
-        "account_id", "trade_id", "operation_id", "instrument_uid", "ticker",
-        "instrument_name", "side", "quantity", "price", "currency", "commission",
-        "commission_currency", "payment", "payment_currency", "executed_at",
-    )
-    rows = [tuple(trade[field] for field in fields) for trade in trades]
+    rows = [tuple(trade[field] for field in TRADE_FIELDS) for trade in trades]
     if not rows:
         return 0
 
-    placeholders = ", ".join("?" for _ in fields)
-    updates = ", ".join(f"{field}=excluded.{field}" for field in fields[2:])
+    placeholders = ", ".join("?" for _ in TRADE_FIELDS)
+    updates = ", ".join(f"{field} = excluded.{field}" for field in TRADE_FIELDS[2:])
+    sql = (
+        f"INSERT INTO trades ({', '.join(TRADE_FIELDS)}) VALUES ({placeholders}) "
+        f"ON CONFLICT(account_id, trade_id) DO UPDATE SET {updates}"
+    )
     with connect() as db:
-        db.executemany(
-            f"INSERT INTO trades ({', '.join(fields)}) VALUES ({placeholders}) "
-            f"ON CONFLICT(account_id, trade_id) DO UPDATE SET {updates}",
-            rows,
-        )
+        db.executemany(sql, rows)
     return len(rows)
 
 
-def accounts():
+def get_accounts():
     with connect() as db:
         return [dict(row) for row in db.execute("SELECT * FROM accounts ORDER BY name")]
 
 
-def instruments():
+def get_instruments():
+    sql = "SELECT instrument_uid, ticker, instrument_name FROM trades GROUP BY instrument_uid"
     with connect() as db:
-        rows = db.execute(
-            "SELECT instrument_uid, ticker, instrument_name FROM trades GROUP BY instrument_uid"
-        )
         return {
             row["instrument_uid"]: {"ticker": row["ticker"], "name": row["instrument_name"]}
-            for row in rows
+            for row in db.execute(sql)
         }
 
 
-def tickers(account_id=None):
+def get_tickers(account_id=None):
     sql = "SELECT DISTINCT ticker FROM trades WHERE ticker != ''"
     params = []
     if account_id:
@@ -147,23 +162,59 @@ def delete_setting(key):
         db.execute("DELETE FROM settings WHERE key = ?", (key,))
 
 
-def load_trades(filters):
-    where = []
+def get_position_notes(position_ids):
+    if not position_ids:
+        return {}
+
+    placeholders = ", ".join("?" for _ in position_ids)
+    sql = f"""
+        SELECT position_id, entry_note, exit_note
+        FROM position_notes
+        WHERE position_id IN ({placeholders})
+    """
+    with connect() as db:
+        return {
+            row["position_id"]: {
+                "entry_note": row["entry_note"],
+                "exit_note": row["exit_note"],
+            }
+            for row in db.execute(sql, position_ids)
+        }
+
+
+def save_position_notes(position_id, entry_note, exit_note):
+    with connect() as db:
+        db.execute(
+            """
+            INSERT INTO position_notes (position_id, entry_note, exit_note)
+            VALUES (?, ?, ?)
+            ON CONFLICT(position_id) DO UPDATE SET
+                entry_note = excluded.entry_note,
+                exit_note = excluded.exit_note,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (position_id, entry_note, exit_note),
+        )
+
+
+def get_trades(filters):
+    conditions = []
     params = []
 
     if filters.get("account"):
-        where.append("trades.account_id = ?")
+        conditions.append("trades.account_id = ?")
         params.append(filters["account"])
     if filters.get("search"):
-        where.append("(ticker LIKE ? OR instrument_name LIKE ?)")
-        query = f"%{filters['search']}%"
-        params.extend((query, query))
+        conditions.append("(ticker LIKE ? OR instrument_name LIKE ?)")
+        search = f"%{filters['search']}%"
+        params.extend((search, search))
 
-    clause = f"WHERE {' AND '.join(where)}" if where else ""
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = f"""
         SELECT trades.*, accounts.name AS account_name
-        FROM trades JOIN accounts ON accounts.id = trades.account_id
-        {clause}
+        FROM trades
+        JOIN accounts ON accounts.id = trades.account_id
+        {where}
     """
     with connect() as db:
         return [dict(row) for row in db.execute(sql, params)]
