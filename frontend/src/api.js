@@ -8,6 +8,16 @@ async function request(path, options) {
 }
 
 
+async function download(path) {
+  const response = await fetch(path);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Ошибка запроса: ${response.status}`);
+  }
+  return response.blob();
+}
+
+
 function queryString(filters) {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
@@ -21,6 +31,7 @@ export const api = {
   accounts: () => request("/api/accounts"),
   tickers: (account = "") => request(`/api/tickers?${queryString({ account })}`),
   positions: (filters) => request(`/api/positions?${queryString(filters)}`),
+  exportPositions: (filters) => download(`/api/positions/export?${queryString(filters)}`),
   savePositionNotes: (positionId, notes) => request(
     `/api/positions/${encodeURIComponent(positionId)}/notes`,
     {

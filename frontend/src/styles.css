@@ -26,6 +26,7 @@ h1 { margin: 0; font-size: 26px; }
 .summary { color: #647080; font-size: 14px; }
 
 nav { display: flex; gap: 8px; }
+.header-actions { display: flex; gap: 8px; }
 nav a {
   color: #647080;
   text-decoration: none;

@@ -46,6 +46,7 @@ export function PositionsPage() {
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_COLUMNS);
   const [error, setError] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const loadPositions = useCallback(async () => {
     try {
@@ -96,6 +97,24 @@ export function PositionsPage() {
     }
   }
 
+  async function exportPositions() {
+    try {
+      setExporting(true);
+      setError("");
+      const blob = await api.exportPositions(filters);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `trade-activity-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function updateNote(positionId, field, value) {
     setPositions((current) => current.map((position) => (
       position.id === positionId ? { ...position, [field]: value } : position
@@ -130,14 +149,19 @@ export function PositionsPage() {
 
   const columns = createColumns({ updateNote, saveNotes });
   const displayedColumns = columns.filter((column) => visibleColumns.includes(column.key));
-  const syncButton = (
-    <button className="primary" disabled={syncing} onClick={synchronize}>
-      {syncing ? "Синхронизация…" : "Синхронизировать"}
-    </button>
+  const actions = (
+    <div className="header-actions">
+      <button disabled={exporting} onClick={exportPositions}>
+        {exporting ? "Выгрузка…" : "Выгрузить JSON"}
+      </button>
+      <button className="primary" disabled={syncing} onClick={synchronize}>
+        {syncing ? "Синхронизация…" : "Синхронизировать"}
+      </button>
+    </div>
   );
 
   return (
-    <Layout title="Позиции T‑Bank" subtitle={`Позиций: ${positions.length}`} action={syncButton}>
+    <Layout title="Позиции T‑Bank" subtitle={`Позиций: ${positions.length}`} action={actions}>
       <section className="filters">
         <select value={filters.account} onChange={(event) => updateFilter("account", event.target.value)}>
           <option value="">Все счета</option>
