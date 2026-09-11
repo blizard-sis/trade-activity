@@ -1,11 +1,15 @@
 # Локальная конфигурация
 config.json
+.vscode
 
 # Окружение Python
 .venv/
 venv/
 __pycache__/
 *.pyc
+*.egg-info/
+build/
+dist/
 
 # Локальная база
 *.sqlite3

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trade-activity"
+version = "1.0.0"
+description = "Локальная история сделок T-Bank с группировкой позиций и помесячным отчётом"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "Flask==3.1.1",
+    "requests==2.32.4",
+    "truststore==0.10.4",
+]
+
+[tool.setuptools]
+packages = ["backend"]
