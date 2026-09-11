@@ -1,6 +1,7 @@
 import sqlite3
 
-from .config import ROOT
+from ..config import ROOT
+from ..domain.journal import JOURNAL_FIELDS
 
 
 DATABASE = ROOT / "trade_activity.sqlite3"
@@ -65,6 +66,10 @@ def initialize():
             """
         )
         _migrate_trades(db)
+        note_columns = {row["name"] for row in db.execute("PRAGMA table_info(position_notes)")}
+        for name in ("planned_stop", "planned_take"):
+            if name not in note_columns:
+                db.execute(f"ALTER TABLE position_notes ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
         db.execute("PRAGMA optimize")
 
 
@@ -168,16 +173,13 @@ def get_position_notes(position_ids):
 
     placeholders = ", ".join("?" for _ in position_ids)
     sql = f"""
-        SELECT position_id, entry_note, exit_note
+        SELECT *
         FROM position_notes
         WHERE position_id IN ({placeholders})
     """
     with connect() as db:
         return {
-            row["position_id"]: {
-                "entry_note": row["entry_note"],
-                "exit_note": row["exit_note"],
-            }
+            row["position_id"]: {key: row[key] for key in JOURNAL_FIELDS}
             for row in db.execute(sql, position_ids)
         }
 
@@ -194,6 +196,18 @@ def save_position_notes(position_id, entry_note, exit_note):
                 updated_at = CURRENT_TIMESTAMP
             """,
             (position_id, entry_note, exit_note),
+        )
+
+
+def save_journal(position_id, values):
+    columns = ", ".join(JOURNAL_FIELDS)
+    placeholders = ", ".join("?" for _ in JOURNAL_FIELDS)
+    updates = ", ".join(f"{key} = excluded.{key}" for key in JOURNAL_FIELDS)
+    with connect() as db:
+        db.execute(
+            f"INSERT INTO position_notes (position_id, {columns}) VALUES (?, {placeholders}) "
+            f"ON CONFLICT(position_id) DO UPDATE SET {updates}, updated_at = CURRENT_TIMESTAMP",
+            (position_id, *(values[key] for key in JOURNAL_FIELDS)),
         )
 
 

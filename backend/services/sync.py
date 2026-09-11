@@ -1,5 +1,5 @@
-from . import database
-from .tbank import TBankClient, operation_trades
+from ..storage import database
+from ..brokers.tbank import TBankClient, operation_trades
 
 
 def sync_trades(token):

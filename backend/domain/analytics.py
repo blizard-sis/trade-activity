@@ -44,6 +44,7 @@ class OpenPosition:
     exit_at: str | None = None
     price_precision: int = 0
     orders: set = field(default_factory=set)
+    exit_prices: list = field(default_factory=list)
 
     @classmethod
     def start(cls, trade, quantity):
@@ -72,6 +73,7 @@ class OpenPosition:
         self._add_costs(trade, quantity)
 
     def add_exit(self, trade, quantity):
+        self.exit_prices.append(trade["price"])
         self.exit_quantity += quantity
         self.remaining -= quantity
         self.exit_value += trade["price"] * quantity
@@ -101,6 +103,7 @@ class OpenPosition:
             "remaining": self.remaining,
             "entry_price": self.entry_value / self.entry_quantity,
             "exit_price": self.exit_value / self.exit_quantity if self.exit_quantity else None,
+            "exit_prices": self.exit_prices,
             "currency": self.currency,
             "price_precision": self.price_precision,
             "commission": self.commission,

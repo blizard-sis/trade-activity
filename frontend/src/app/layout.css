@@ -1,0 +1,32 @@
+nav { display: flex; gap: 8px; }
+nav a {
+  color: #647080;
+  text-decoration: none;
+  padding: 8px 11px;
+  border-radius: 7px;
+}
+nav a.active { color: #18202a; background: white; }
+.app-shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+.app-shell.menu-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
+.app-shell main { min-width: 0; padding: 32px; }
+.sidebar { position: sticky; top: 0; height: 100vh; padding: 24px 12px; background: #fff; border-right: 1px solid #e3e7eb; }
+.sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 0 10px; height: 36px; white-space: nowrap; }
+.sidebar-brand > span { color: #315f9d; font-size: 24px; }
+.menu-toggle { display: flex; align-items: center; gap: 12px; width: 100%; margin: 22px 0; border-color: transparent; color: #647080; font-size: 13px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 6px; }
+.sidebar nav a { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 14px; white-space: nowrap; }
+.sidebar nav a.active { color: #244f88; background: #eaf1fb; font-weight: 600; }
+.sidebar nav a:last-child { margin-top: 14px; }
+.menu-collapsed .menu-label { display: none; }
+@media (max-width: 1100px) {
+  .app-shell main { padding: 24px; }
+}
+@media (max-width: 600px) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid #e3e7eb; padding: 12px; }
+  .sidebar-brand { display: none; }
+  .menu-toggle { margin: 0 0 8px; }
+  .app-shell.menu-collapsed { grid-template-columns: 54px minmax(0, 1fr); }
+  .menu-collapsed .sidebar { padding: 12px 6px; }
+  .app-shell main { padding: 16px; }
+}

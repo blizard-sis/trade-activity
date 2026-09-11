@@ -1,9 +1,11 @@
+import { loadAccounts } from "../../shared/api/accounts";
+import "./reports.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { api } from "../api";
-import { Layout } from "../components/Layout";
-import { Message } from "../components/Message";
-import { formatMoney, formatMonth, resultClass } from "../format";
+import { api } from "./api";
+import { Layout } from "../../app/Layout";
+import { Message } from "../../shared/components/Message";
+import { formatMoney, formatMonth, resultClass } from "../../shared/format";
 
 
 const DEFAULT_FILTERS = {
@@ -24,7 +26,7 @@ export function MonthlyPage() {
   const skipSave = useRef(false);
 
   useEffect(() => {
-    Promise.all([api.accounts(), api.loadMonthlyFilters()])
+    Promise.all([loadAccounts(), api.loadMonthlyFilters()])
       .then(([loadedAccounts, saved]) => {
         setAccounts(loadedAccounts);
         setFilters({ ...DEFAULT_FILTERS, ...saved });
@@ -126,4 +128,3 @@ export function MonthlyPage() {
     </Layout>
   );
 }
-

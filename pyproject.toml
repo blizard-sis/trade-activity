@@ -14,5 +14,5 @@ dependencies = [
     "truststore==0.10.4",
 ]
 
-[tool.setuptools]
-packages = ["backend"]
+[tool.setuptools.packages.find]
+include = ["backend", "backend.*"]
