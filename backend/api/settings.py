@@ -12,7 +12,7 @@ POSITION_TABLE_SETTINGS_KEY = "position_table_settings"
 POSITION_COLUMNS = {
     "entry_at", "exit_at", "account", "instrument", "direction", "entry_quantity",
     "remaining", "entry_price", "exit_price", "gross_result", "commission", "net_result",
-    "status", "order_count", "entry_note", "exit_note",
+    "status", "order_count", "entry_note", "exit_note", "journal",
 }
 
 
@@ -39,7 +39,10 @@ def monthly_filters():
 def position_table_settings():
     if request.method == "GET":
         saved = database.get_setting(POSITION_TABLE_SETTINGS_KEY)
-        return jsonify(json.loads(saved) if saved else {})
+        settings = json.loads(saved) if saved else {}
+        if settings.get("visible_columns") and not settings.get("journal_column_supported"):
+            settings["visible_columns"].append("journal")
+        return jsonify(settings)
 
     if request.method == "DELETE":
         database.delete_setting(POSITION_TABLE_SETTINGS_KEY)
@@ -47,6 +50,6 @@ def position_table_settings():
 
     requested_columns = request.get_json().get("visible_columns", [])
     visible_columns = [column for column in requested_columns if column in POSITION_COLUMNS]
-    settings = {"visible_columns": visible_columns}
+    settings = {"visible_columns": visible_columns, "journal_column_supported": True}
     database.save_setting(POSITION_TABLE_SETTINGS_KEY, json.dumps(settings))
     return jsonify(settings)

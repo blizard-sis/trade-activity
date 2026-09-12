@@ -10,8 +10,9 @@ export function formatQuantity(value) {
 }
 
 
-export function formatMoney(value) {
-  return value === null ? "—" : `${money.format(value)} ₽`;
+export function formatMoney(value, currency = "RUB") {
+  const code = (currency || "RUB").toUpperCase();
+  return value === null ? "—" : `${money.format(value)} ${code === "RUB" ? "₽" : code}`;
 }
 
 
@@ -42,4 +43,3 @@ export function resultClass(value) {
   if (value < 0) return "negative";
   return "";
 }
-

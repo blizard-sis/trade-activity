@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from ..domain.accounts import selected_accounts
+from ..domain.winrate import exit_category, win_rates
 
 
 def build_export_document(positions, filters):
@@ -14,6 +16,8 @@ def build_export_document(positions, filters):
         "summary": _export_summary(positions),
         "positions": [_export_position(position) for position in positions],
     }
+    if selected_accounts(filters):
+        document["filters"]["account"] = selected_accounts(filters)
     return document
 
 
@@ -21,6 +25,9 @@ def _export_summary(positions):
     closed = [position for position in positions if position["status"] == "closed"]
     wins = sum(position["net_result"] > 0 for position in closed)
     losses = sum(position["net_result"] < 0 for position in closed)
+    categories = [exit_category(position) for position in closed]
+    takes, stops = categories.count("take"), categories.count("stop")
+    rates = win_rates(len(closed), wins, takes, stops)
     return {
         "positions": len(positions),
         "closed": len(closed),
@@ -28,7 +35,13 @@ def _export_summary(positions):
         "wins": wins,
         "losses": losses,
         "breakeven": len(closed) - wins - losses,
-        "win_rate_percent": wins / len(closed) * 100 if closed else 0,
+        "win_rate_percent": rates["win_rate"],
+        "clean_win_rate_percent": rates["clean_win_rate"],
+        "takes": takes,
+        "stops": stops,
+        "manual": categories.count("manual"),
+        "mixed": categories.count("mixed"),
+        "unknown": categories.count("unknown"),
         "gross_result_rub": sum(position["gross_result"] for position in closed),
         "commission_rub": sum(position["commission"] for position in closed),
         "net_result_rub": sum(position["net_result"] for position in closed),

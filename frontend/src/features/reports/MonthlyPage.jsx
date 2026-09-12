@@ -1,3 +1,4 @@
+import { AccountPicker } from "../../shared/components/AccountPicker";
 import { loadAccounts } from "../../shared/api/accounts";
 import "./reports.css";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,6 +17,8 @@ const DEFAULT_FILTERS = {
   month_to: "",
 };
 
+
+const percent = (value) => value == null ? "—" : `${value.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%`;
 
 export function MonthlyPage() {
   const [accounts, setAccounts] = useState([]);
@@ -60,9 +63,13 @@ export function MonthlyPage() {
   const totals = useMemo(() => {
     const positions = months.reduce((sum, row) => sum + row.positions, 0);
     const wins = months.reduce((sum, row) => sum + row.wins, 0);
+    const takes = months.reduce((sum, row) => sum + row.takes, 0);
+    const stops = months.reduce((sum, row) => sum + row.stops, 0);
     return {
-      net: months.reduce((sum, row) => sum + row.net_result, 0),
-      winRate: positions ? wins / positions * 100 : 0,
+      takes, stops,
+      net: months.reduce((sums, row) => ({ ...sums, [row.currency]: (sums[row.currency] || 0) + row.net_result }), {}),
+      winRate: positions ? wins / positions * 100 : null,
+      cleanWinRate: takes + stops ? takes / (takes + stops) * 100 : null,
     };
   }, [months]);
 
@@ -83,10 +90,7 @@ export function MonthlyPage() {
   return (
     <Layout title="Помесячный отчёт" subtitle={`Месяцев: ${months.length}`}>
       <section className="filters report-filters">
-        <select value={filters.account} onChange={(event) => updateFilter("account", event.target.value)}>
-          <option value="">Все счета</option>
-          {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-        </select>
+        <AccountPicker accounts={accounts} value={filters.account} onChange={(value) => updateFilter("account", value)} />
         <select value={filters.ticker_mode} onChange={(event) => updateFilter("ticker_mode", event.target.value)}>
           <option value="all">Все тикеры</option><option value="only">Только инструмент</option><option value="exclude">Исключить инструмент</option>
         </select>
@@ -99,26 +103,29 @@ export function MonthlyPage() {
         <button onClick={clearFilters}>Очистить фильтры</button>
 
         <div className="totals">
-          <span className="metric">Чистыми <strong className={resultClass(totals.net)}>{formatMoney(totals.net)}</strong></span>
-          <span className="metric">Винрейт <strong>{totals.winRate.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%</strong></span>
+          <span className="metric">Чистыми {Object.entries(totals.net).map(([currency, value]) => <strong key={currency} className={resultClass(value)}>{formatMoney(value, currency)} </strong>)}</span>
+          <span className="metric" title="Прибыльные после комиссии / все закрытые позиции, включая ручные и безубыточные">Итоговый винрейт <strong>{percent(totals.winRate)}</strong></span>
+          <span className="metric" title="Тейки / (тейки + стопы). Ручные, смешанные и неопределённые выходы исключены">Чистый винрейт <strong>{percent(totals.cleanWinRate)}</strong> <small>Тейки: {totals.takes} · Стопы: {totals.stops}</small></span>
         </div>
       </section>
 
+      <p className="summary">Итоговый: прибыльные после комиссии / все закрытые. Чистый: тейки / (тейки + стопы). Причины оцениваются по уровням плана из дневника; выходы без достаточных данных не входят в чистый винрейт.</p>
       {error && <Message type="error">{error}</Message>}
       <div className="table-card">
         <table>
           <thead><tr>
             <th>Месяц</th><th>Позиций</th><th>Прибыльных</th><th>Убыточных</th>
-            <th>Винрейт</th><th>Результат</th><th>Комиссия</th><th>Чистыми</th>
+            <th>Итоговый винрейт</th><th>Чистый винрейт</th><th>Тейки</th><th>Стопы</th><th>Ручные</th><th>Смешанные</th><th>Не определено</th><th>Результат</th><th>Комиссия</th><th>Чистыми</th>
           </tr></thead>
           <tbody>
             {months.map((row) => (
-              <tr key={row.month}>
+              <tr key={`${row.month}-${row.currency}`}>
                 <td>{formatMonth(row.month)}</td><td>{row.positions}</td><td>{row.wins}</td><td>{row.losses}</td>
-                <td>{row.win_rate.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%</td>
-                <td className={resultClass(row.gross_result)}>{formatMoney(row.gross_result)}</td>
-                <td>{formatMoney(row.commission)}</td>
-                <td className={resultClass(row.net_result)}>{formatMoney(row.net_result)}</td>
+                <td>{percent(row.win_rate)}</td><td>{percent(row.clean_win_rate)}</td>
+                <td>{row.takes}</td><td>{row.stops}</td><td>{row.manual}</td><td>{row.mixed}</td><td>{row.unknown}</td>
+                <td className={resultClass(row.gross_result)}>{formatMoney(row.gross_result, row.currency)}</td>
+                <td>{formatMoney(row.commission, row.currency)}</td>
+                <td className={resultClass(row.net_result)}>{formatMoney(row.net_result, row.currency)}</td>
               </tr>
             ))}
           </tbody>

@@ -32,3 +32,6 @@
 }
 .journal-link { font-size: 13px; text-decoration: none; }
 tr.selected-position td { background: #e3efff; }
+.tradingview-import { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 20px; margin-bottom: 20px; border: 1px solid #dce2eb; border-radius: 12px; }
+.tradingview-import p, .tradingview-import > strong { flex-basis: 100%; margin: 0; }
+.tradingview-import label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

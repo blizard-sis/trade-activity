@@ -7,7 +7,6 @@ export function PositionsTable({ positions, visibleColumns, onSort, error }) {
     <div className="table-card">
       <table className="positions-table">
         <thead><tr>
-          <th>Дневник</th>
           {displayedColumns.map((column) => (
             <th
               key={column.key}
@@ -21,7 +20,6 @@ export function PositionsTable({ positions, visibleColumns, onSort, error }) {
         <tbody>
           {positions.map((position) => (
             <tr key={position.id} id={`position-${position.id}`} className={new URLSearchParams(window.location.search).get("position") === position.id ? "selected-position" : ""}>
-              <td><a className="journal-link" href={`/journal?position=${encodeURIComponent(position.id)}`}>Открыть разбор ↗</a></td>
               {displayedColumns.map((column) => (
                 <td key={column.key} className={column.align || ""}>{column.render(position)}</td>
               ))}

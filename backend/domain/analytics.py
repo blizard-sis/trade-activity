@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass, field
 from itertools import groupby
+from .winrate import exit_category, win_rates
 
 
 FUTURES_TICKER = re.compile(r"^(.+)[FGHJKMNQUVXZ]\d$")
@@ -180,11 +181,18 @@ def monthly_report(positions, filters):
 
     for position in positions:
         month = position["exit_at"][:7]
-        row = months.setdefault(month, {
+        currency = (position["result_currency"] or "rub").upper()
+        row = months.setdefault((month, currency), {
             "month": month,
+            "currency": currency,
             "positions": 0,
             "wins": 0,
             "losses": 0,
+            "takes": 0,
+            "stops": 0,
+            "manual": 0,
+            "mixed": 0,
+            "unknown": 0,
             "gross_result": 0,
             "commission": 0,
             "net_result": 0,
@@ -192,12 +200,14 @@ def monthly_report(positions, filters):
         row["positions"] += 1
         row["wins"] += position["net_result"] > 0
         row["losses"] += position["net_result"] < 0
+        category = exit_category(position)
+        row[{"take": "takes", "stop": "stops"}.get(category, category)] += 1
         row["gross_result"] += position["gross_result"]
         row["commission"] += position["commission"]
         row["net_result"] += position["net_result"]
 
     for row in months.values():
-        row["win_rate"] = row["wins"] / row["positions"] * 100
+        row.update(win_rates(row["positions"], row["wins"], row["takes"], row["stops"]))
 
     return sorted(months.values(), key=lambda row: row["month"], reverse=True)
 

@@ -21,7 +21,8 @@ export async function download(path) {
 export function queryString(filters) {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
-    if (value !== "" && value !== null && value !== undefined) params.set(key, value);
+    if (Array.isArray(value)) value.forEach((item) => params.append(key, item));
+    else if (value !== "" && value !== null && value !== undefined) params.set(key, value);
   });
   return params.toString();
 }

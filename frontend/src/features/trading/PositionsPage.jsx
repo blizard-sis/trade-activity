@@ -1,3 +1,4 @@
+import { AccountPicker } from "../../shared/components/AccountPicker";
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "./api";
@@ -29,6 +30,31 @@ export function PositionsPage() {
   const [error, setError] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importFiles, setImportFiles] = useState([]);
+  const [paperName, setPaperName] = useState("Paper Trading");
+  const [importMessage, setImportMessage] = useState("");
+
+  async function importTradingView(event) {
+    event.preventDefault();
+    setImporting(true);
+    setError("");
+    setImportMessage("");
+    try {
+      const body = new FormData();
+      importFiles.forEach((file) => body.append("files", file));
+      body.append("account_name", paperName);
+      const result = await api.importTradingView(body);
+      setImportMessage(`Добавлено: ${result.added}. Обновлено: ${result.updated}. Без изменений: ${result.unchanged}. В файле: ${result.closed} закрытых и ${result.open} открытых позиций.${result.ignored.length ? " Текущие заявки, снимок позиций и журнал активности не импортируются отдельно." : ""}`);
+      setAccounts(await loadAccounts());
+      setFilters({ ...DEFAULT_FILTERS, account: result.account_id });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const loadPositions = useCallback(async () => {
     try {
@@ -122,6 +148,7 @@ export function PositionsPage() {
 
   const actions = (
     <div className="header-actions">
+      <button onClick={() => setShowImport(!showImport)} aria-expanded={showImport}>Загрузить TradingView</button>
       <button disabled={exporting} onClick={exportPositions}>
         {exporting ? "Выгрузка…" : "Выгрузить JSON"}
       </button>
@@ -133,11 +160,17 @@ export function PositionsPage() {
 
   return (
     <Layout title="Торговля" subtitle={`Позиций: ${positions.length}`} action={actions}>
+      {showImport && <form className="tradingview-import" onSubmit={importTradingView}>
+        <strong>TradingView Paper Trading</strong>
+        <p>Выберите CSV «История сделок» (trade-history). Можно выбрать сразу все 6 файлов: история заявок уточнит время, история баланса — результат и валюту цены.</p>
+        <p>Для повторной загрузки используйте то же название счёта. Для другого демо-счёта или после сброса баланса укажите новое. Время сохраняется как в выгрузке.</p>
+        <label>Название демо-счёта <input required maxLength={100} value={paperName} disabled={importing} onChange={(event) => setPaperName(event.target.value)} /></label>
+        <label>CSV-файлы <input type="file" accept=".csv,text/csv" multiple required disabled={importing} onChange={(event) => setImportFiles(Array.from(event.target.files))} /></label>
+        <button className="primary" disabled={importing || !importFiles.length}>{importing ? "Загрузка…" : "Импортировать"}</button>
+      </form>}
+      {importMessage && <Message>{importMessage}</Message>}
       <section className="filters">
-        <select value={filters.account} onChange={(event) => updateFilter("account", event.target.value)}>
-          <option value="">Все счета</option>
-          {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-        </select>
+        <AccountPicker accounts={accounts} value={filters.account} onChange={(value) => updateFilter("account", value)} />
         <select value={filters.direction} onChange={(event) => updateFilter("direction", event.target.value)}>
           <option value="">Лонг и шорт</option><option value="long">Лонг</option><option value="short">Шорт</option>
         </select>

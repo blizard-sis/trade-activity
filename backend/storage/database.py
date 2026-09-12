@@ -1,7 +1,9 @@
 import sqlite3
+import json
 
 from ..config import ROOT
 from ..domain.journal import JOURNAL_FIELDS
+from ..domain.accounts import selected_accounts, account_source
 
 
 DATABASE = ROOT / "trade_activity.sqlite3"
@@ -52,6 +54,12 @@ def initialize():
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS imported_positions (
+                id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                payload TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS position_notes (
@@ -123,7 +131,7 @@ def save_trades(trades):
 
 def get_accounts():
     with connect() as db:
-        return [dict(row) for row in db.execute("SELECT * FROM accounts ORDER BY name")]
+        return [account_source(dict(row)) for row in db.execute("SELECT * FROM accounts ORDER BY name")]
 
 
 def get_instruments():
@@ -138,13 +146,60 @@ def get_instruments():
 def get_tickers(account_id=None):
     sql = "SELECT DISTINCT ticker FROM trades WHERE ticker != ''"
     params = []
-    if account_id:
-        sql += " AND account_id = ?"
-        params.append(account_id)
+    ids = selected_accounts({"account": account_id})
+    if ids:
+        sql += f" AND account_id IN ({','.join('?' for _ in ids)})"
+        params.extend(ids)
     sql += " ORDER BY ticker"
 
     with connect() as db:
-        return [row["ticker"] for row in db.execute(sql, params)]
+        values = {row["ticker"] for row in db.execute(sql, params)}
+    values.update(p["ticker"] for p in get_imported_positions({"account": account_id}))
+    return sorted(values)
+
+
+def get_imported_positions(filters):
+    with connect() as db:
+        rows = db.execute("SELECT payload FROM imported_positions").fetchall()
+    positions = [json.loads(row["payload"]) for row in rows]
+    ids = selected_accounts(filters)
+    if ids:
+        positions = [p for p in positions if p["account_id"] in ids]
+    if filters.get("search"):
+        term = filters["search"].casefold()
+        positions = [p for p in positions if term in p["ticker"].casefold() or term in p["instrument_name"].casefold()]
+    return positions
+
+
+def save_imported_positions(positions):
+    counts = dict(added=0, updated=0, unchanged=0)
+    with connect() as db:
+        first = positions[0]
+        db.execute("INSERT OR IGNORE INTO accounts VALUES (?, ?, 'paper', 'active')",
+                   (first["account_id"], first["account_name"]))
+        for position in positions:
+            old = db.execute("SELECT payload FROM imported_positions WHERE id = ?", (position["id"],)).fetchone()
+            payload = json.dumps(position, ensure_ascii=False, sort_keys=True)
+            if old:
+                previous = json.loads(old["payload"])
+                # A previously closed position must not reopen after an older export.
+                if previous["status"] == "closed" and position["status"] == "open":
+                    counts["unchanged"] += 1
+                    continue
+                # Keep precise timestamps/currency when a later upload omits supporting tabs.
+                for field in ("entry_at", "exit_at"):
+                    if previous[field] and position[field] and previous[field][:16] == position[field][:16] and position[field].endswith(":00"):
+                        position[field] = previous[field]
+                if not position["currency"]:
+                    position["currency"] = previous["currency"]
+                if previous["net_result"] is not None and position["net_result"] is not None and abs(previous["net_result"] - position["net_result"]) < 0.011 and position["net_result"] == round(position["net_result"], 2):
+                    position["net_result"] = previous["net_result"]
+                    position["gross_result"] = position["net_result"] + position["commission"]
+                payload = json.dumps(position, ensure_ascii=False, sort_keys=True)
+            counts["unchanged" if old and old["payload"] == payload else "updated" if old else "added"] += 1
+            db.execute("INSERT INTO imported_positions VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                       (position["id"], position["account_id"], payload))
+    return counts
 
 
 def get_setting(key):
@@ -215,9 +270,10 @@ def get_trades(filters):
     conditions = []
     params = []
 
-    if filters.get("account"):
-        conditions.append("trades.account_id = ?")
-        params.append(filters["account"])
+    ids = selected_accounts(filters)
+    if ids:
+        conditions.append(f"trades.account_id IN ({','.join('?' for _ in ids)})")
+        params.extend(ids)
     if filters.get("search"):
         conditions.append("(ticker LIKE ? OR instrument_name LIKE ?)")
         search = f"%{filters['search']}%"
