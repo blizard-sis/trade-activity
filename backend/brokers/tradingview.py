@@ -36,6 +36,10 @@ def parse_files(files, account_id, account_name):
             rows = list(reader)
         except (UnicodeError, csv.Error):
             raise ValueError(f"{filename}: ожидается CSV в UTF-8") from None
+        # TradingView exports tabs with no data as empty files, without headers.
+        if not headers and not rows:
+            ignored.append(filename)
+            continue
         if any(None in row or None in row.values() for row in rows):
             raise ValueError(f"{filename}: повреждённая строка CSV")
         if {"Trade number", "Type", "Date and time", "Symbol", "Order ID", "Price", "Size (qty)"} <= headers:

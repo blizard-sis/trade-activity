@@ -57,6 +57,46 @@ class TradingViewTests(unittest.TestCase):
         self.assertEqual(before['id'], after['id'])
         self.assertEqual(after['status'], 'closed')
 
+    def test_six_file_export_with_empty_tabs(self):
+        files = [
+            ('paper-trading-trade-history.csv', report()),
+            ('paper-trading-orders-all.csv', b''),
+            ('paper-trading-positions.csv', b'\xef\xbb\xbf'),
+            ('paper-trading-activity-log.csv', b'Time,Text\n'),
+            ('paper-trading-order-history-all.csv', b'Order ID,Closing time,Fill price,Status\n'),
+            ('paper-trading-balance-history.csv', b'Time,Action,Realized PnL (value),Realized PnL (currency)\n'),
+        ]
+        def upload_files():
+            return self.client.post('/api/imports/tradingview', data={
+                'account_name': 'Paper Trading',
+                'files': [(io.BytesIO(content), name) for name, content in files],
+            })
+        response = upload_files()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()['added'], 1)
+        self.assertEqual(set(response.get_json()['ignored']), {
+            'paper-trading-orders-all.csv', 'paper-trading-positions.csv',
+            'paper-trading-activity-log.csv',
+        })
+        self.assertEqual(upload_files().get_json()['unchanged'], 1)
+
+    def test_empty_export_still_requires_trade_history(self):
+        response = self.client.post('/api/imports/tradingview', data={
+            'files': (io.BytesIO(b''), 'paper-trading-trade-history.csv'),
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Добавьте непустой файл', response.get_json()['error'])
+        self.assertEqual(database.get_accounts(), [])
+
+    def test_unknown_nonempty_file_still_rejected(self):
+        response = self.client.post('/api/imports/tradingview', data={
+            'files': [(io.BytesIO(report()), 'history.csv'),
+                      (io.BytesIO(b'Unknown,Columns\n1,2\n'), 'unknown.csv')],
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('неизвестная вкладка', response.get_json()['error'])
+        self.assertEqual(database.get_accounts(), [])
+
     def test_bad_file_writes_nothing_and_accounts_are_separate(self):
         self.assertEqual(self.upload(report(invalid=True)).status_code, 400)
         self.assertEqual(database.get_accounts(), [])
