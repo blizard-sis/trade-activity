@@ -1,28 +1,21 @@
-import { COLUMN_LABELS } from "../columns";
 import { useState } from "react";
+import { Button, Checkbox, Popover, ScrollArea, Stack, Text, TextInput } from "@mantine/core";
+import { COLUMN_LABELS } from "../columns";
 
 export function ColumnPicker({ visible, onToggle, onReset }) {
   const [search, setSearch] = useState("");
   const columns = Object.entries(COLUMN_LABELS).filter(([, label]) => label.toLocaleLowerCase("ru").includes(search.trim().toLocaleLowerCase("ru")));
-  return (
-    <details className="column-picker" onToggle={(event) => { if (!event.currentTarget.open) setSearch(""); }} onKeyDown={(event) => {
-      if (event.key === "Escape") {
-        event.currentTarget.open = false;
-        event.currentTarget.querySelector("summary").focus();
-      }
-    }}>
-      <summary>Колонки</summary>
-      <div className="column-menu">
-        <input className="dropdown-search" type="search" placeholder="Найти колонку" aria-label="Поиск колонки" value={search} onChange={(event) => setSearch(event.target.value)} />
-        {columns.map(([key, label]) => (
-          <label key={key}>
-            <input type="checkbox" checked={visible.includes(key)} onChange={() => onToggle(key)} />
-            {label}
-          </label>
-        ))}
-        {!columns.length && <p className="summary" role="status">Ничего не найдено</p>}
-        <button type="button" onClick={onReset}>Показать все</button>
-      </div>
-    </details>
-  );
+  return <Popover width={280} position="bottom-end" shadow="md" onClose={() => setSearch("")} trapFocus>
+    <Popover.Target><Button variant="default">Колонки</Button></Popover.Target>
+    <Popover.Dropdown>
+      <Stack gap="sm">
+        <TextInput aria-label="Поиск колонки" placeholder="Найти колонку" value={search} onChange={(event) => setSearch(event.target.value)} data-autofocus />
+        <ScrollArea.Autosize mah={300}>
+          <Stack gap="sm">{columns.map(([key, label]) => <Checkbox key={key} label={label} checked={visible.includes(key)} onChange={() => onToggle(key)} />)}</Stack>
+          {!columns.length && <Text c="dimmed" role="status">Ничего не найдено</Text>}
+        </ScrollArea.Autosize>
+        <Button variant="light" onClick={onReset}>Показать все</Button>
+      </Stack>
+    </Popover.Dropdown>
+  </Popover>;
 }

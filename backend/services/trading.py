@@ -1,6 +1,5 @@
-from ..domain.analytics import build_positions, filter_positions, monthly_report
+from ..domain.analytics import build_positions, filter_positions
 from ..storage import database
-from ..domain.accounts import selected_accounts
 
 
 def get_positions(filters):
@@ -12,9 +11,3 @@ def get_positions(filters):
             position["account_name"] = source["name"]
             position["platform"] = source["platform"]
     return filter_positions(positions, filters)
-
-
-def get_monthly_report(filters):
-    # Import here because the journal service also uses get_positions.
-    from .journal import get_journal_positions
-    return monthly_report(get_journal_positions({"account": selected_accounts(filters)}), filters)

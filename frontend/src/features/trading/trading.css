@@ -1,37 +1,17 @@
-.column-picker { position: relative; }
-.column-picker summary {
-  list-style: none;
-  padding: 9px 11px;
-  background: white;
-  border: 1px solid #d7dde4;
-  border-radius: 7px;
-  cursor: pointer;
-}
-.column-picker summary::-webkit-details-marker { display: none; }
-.column-menu {
-  position: absolute;
-  z-index: 10;
-  top: calc(100% + 6px);
-  right: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(160px, 1fr));
-  gap: 7px 14px;
-  width: 390px;
-  padding: 14px;
-  background: white;
-  border: 1px solid #d7dde4;
-  border-radius: 9px;
-  box-shadow: 0 12px 30px rgb(24 32 42 / 14%);
-}
-.column-menu label { color: #18202a; }
-.column-menu input { margin: 0; }
-.column-menu button { grid-column: 1 / -1; }
-
-@media (max-width: 700px) {
-  .column-menu { left: 0; right: auto; grid-template-columns: 1fr; width: 240px; }
-}
 .journal-link { font-size: 13px; text-decoration: none; }
-tr.selected-position td { background: #e3efff; }
-.tradingview-import { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 20px; margin-bottom: 20px; border: 1px solid #dce2eb; border-radius: 12px; }
+tr.selected-position td { background: var(--mantine-color-blue-0); }
+.tradingview-import { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 20px; margin-bottom: 20px; border: 1px solid var(--mantine-color-gray-3); border-radius: var(--mantine-radius-md); background: white; }
 .tradingview-import p, .tradingview-import > strong { flex-basis: 100%; margin: 0; }
 .tradingview-import label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Keep all seven controls on one row when the content area is wide enough. */
+.trading-filters { display: grid; grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(130px, 1fr)) repeat(2, 140px) minmax(150px, 1.1fr) auto; gap: 10px; }
+.trading-filters .account-filter, .trading-filters .search { width: 100%; min-width: 0; }
+@media (max-width: 1300px) {
+  .trading-filters { display: flex; }
+  .trading-filters .account-filter { width: 240px; }
+  .trading-filters .search { width: 180px; }
+}
+@media (max-width: 600px) {
+  .trading-filters .account-filter, .trading-filters .search { width: 100%; }
+}

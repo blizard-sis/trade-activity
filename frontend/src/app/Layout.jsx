@@ -1,5 +1,5 @@
-import "./layout.css";
 import { useState } from "react";
+import { AppShell, Button, Group, NavLink, Stack, Text, Title, Tooltip } from "@mantine/core";
 
 const LINKS = [["/", "▤", "Торговля"], ["/monthly", "▦", "По месяцам"], ["/journal", "✎", "Дневник трейдера"]];
 
@@ -11,21 +11,21 @@ export function Layout({ title, subtitle, action, children }) {
     setCollapsed(!collapsed);
     try { localStorage.setItem("sidebar-collapsed", String(!collapsed)); } catch { /* Storage is optional. */ }
   }
-  return (
-    <div className={`app-shell ${collapsed ? "menu-collapsed" : ""}`}>
-      <aside className="sidebar">
-        <div className="sidebar-brand"><span aria-hidden="true">▥</span><strong className="menu-label">Trade Activity</strong></div>
-        <button className="menu-toggle" onClick={toggleMenu} aria-expanded={!collapsed} aria-controls="main-navigation" aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"} title={collapsed ? "Развернуть меню" : "Свернуть меню"}>
-          <span aria-hidden="true">{collapsed ? "→" : "←"}</span><span className="menu-label">Свернуть меню</span>
-        </button>
+  return <AppShell navbar={{ width: collapsed ? 76 : 230, breakpoint: 0 }} padding="lg">
+    <AppShell.Navbar p="sm">
+      <Stack gap="lg">
+        <Text fw={700} size="lg" ta="center">{collapsed ? "▥" : "Trade Activity"}</Text>
+        <Button variant="subtle" onClick={toggleMenu} aria-expanded={!collapsed} aria-controls="main-navigation" aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}>{collapsed ? "→" : "← Свернуть меню"}</Button>
         <nav id="main-navigation" aria-label="Главное меню">
-          {LINKS.map(([href, icon, label]) => <a key={href} href={href} className={window.location.pathname === href ? "active" : ""} aria-current={window.location.pathname === href ? "page" : undefined} aria-label={label} title={label}><span aria-hidden="true">{icon}</span><span className="menu-label">{label}</span></a>)}
+          {LINKS.map(([href, icon, label]) => <Tooltip key={href} label={label} disabled={!collapsed} position="right">
+            <NavLink href={href} label={collapsed ? icon : label} leftSection={collapsed ? null : icon} active={window.location.pathname === href} aria-label={label} aria-current={window.location.pathname === href ? "page" : undefined} />
+          </Tooltip>)}
         </nav>
-      </aside>
-      <main>
-        <header className="page-header"><div><h1>{title}</h1><span className="summary">{subtitle}</span></div>{action}</header>
-        {children}
-      </main>
-    </div>
-  );
+      </Stack>
+    </AppShell.Navbar>
+    <AppShell.Main>
+      <Group justify="space-between" mb="lg"><div><Title order={1} size="h2">{title}</Title>{subtitle && <Text c="dimmed" size="sm">{subtitle}</Text>}</div>{action}</Group>
+      {children}
+    </AppShell.Main>
+  </AppShell>;
 }

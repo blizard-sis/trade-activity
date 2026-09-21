@@ -1,5 +1,6 @@
 import sqlite3
 import json
+from contextlib import contextmanager
 
 from ..config import ROOT
 from ..domain.journal import JOURNAL_FIELDS
@@ -20,8 +21,19 @@ def connect():
     return connection
 
 
+@contextmanager
+def transaction():
+    """Commit or roll back, and always close the SQLite connection."""
+    connection = connect()
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
+
 def initialize():
-    with connect() as db:
+    with transaction() as db:
         db.executescript(
             """
             CREATE TABLE IF NOT EXISTS accounts (
@@ -69,6 +81,7 @@ def initialize():
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE INDEX IF NOT EXISTS imported_positions_account ON imported_positions(account_id);
             CREATE INDEX IF NOT EXISTS trades_date ON trades(executed_at);
             CREATE INDEX IF NOT EXISTS trades_ticker ON trades(ticker);
             """
@@ -100,7 +113,7 @@ def save_account(account):
         account.get("type", ""),
         account.get("status", ""),
     )
-    with connect() as db:
+    with transaction() as db:
         db.execute(
             """
             INSERT INTO accounts VALUES (?, ?, ?, ?)
@@ -113,10 +126,11 @@ def save_account(account):
         )
 
 
-def save_trades(trades):
-    rows = [tuple(trade[field] for field in TRADE_FIELDS) for trade in trades]
+def save_trades(trades, *, with_counts=False):
+    rows = list({(trade["account_id"], trade["trade_id"]): tuple(trade[field] for field in TRADE_FIELDS) for trade in trades}.values())
+    counts = dict(added=0, updated=0, unchanged=0)
     if not rows:
-        return 0
+        return counts if with_counts else 0
 
     placeholders = ", ".join("?" for _ in TRADE_FIELDS)
     updates = ", ".join(f"{field} = excluded.{field}" for field in TRADE_FIELDS[2:])
@@ -124,19 +138,27 @@ def save_trades(trades):
         f"INSERT INTO trades ({', '.join(TRADE_FIELDS)}) VALUES ({placeholders}) "
         f"ON CONFLICT(account_id, trade_id) DO UPDATE SET {updates}"
     )
-    with connect() as db:
-        db.executemany(sql, rows)
-    return len(rows)
+    with transaction() as db:
+        for row in rows:
+            previous = db.execute(
+                f"SELECT {', '.join(TRADE_FIELDS)} FROM trades WHERE account_id = ? AND trade_id = ?",
+                row[:2],
+            ).fetchone()
+            category = "added" if previous is None else "unchanged" if tuple(previous) == row else "updated"
+            counts[category] += 1
+            if category != "unchanged":
+                db.execute(sql, row)
+    return counts if with_counts else len(rows)
 
 
 def get_accounts():
-    with connect() as db:
+    with transaction() as db:
         return [account_source(dict(row)) for row in db.execute("SELECT * FROM accounts ORDER BY name")]
 
 
 def get_instruments():
     sql = "SELECT instrument_uid, ticker, instrument_name FROM trades GROUP BY instrument_uid"
-    with connect() as db:
+    with transaction() as db:
         return {
             row["instrument_uid"]: {"ticker": row["ticker"], "name": row["instrument_name"]}
             for row in db.execute(sql)
@@ -152,19 +174,20 @@ def get_tickers(account_id=None):
         params.extend(ids)
     sql += " ORDER BY ticker"
 
-    with connect() as db:
+    with transaction() as db:
         values = {row["ticker"] for row in db.execute(sql, params)}
     values.update(p["ticker"] for p in get_imported_positions({"account": account_id}))
     return sorted(values)
 
 
 def get_imported_positions(filters):
-    with connect() as db:
-        rows = db.execute("SELECT payload FROM imported_positions").fetchall()
-    positions = [json.loads(row["payload"]) for row in rows]
     ids = selected_accounts(filters)
+    sql = "SELECT payload FROM imported_positions"
     if ids:
-        positions = [p for p in positions if p["account_id"] in ids]
+        sql += f" WHERE account_id IN ({','.join('?' for _ in ids)})"
+    with transaction() as db:
+        rows = db.execute(sql, ids).fetchall()
+    positions = [json.loads(row["payload"]) for row in rows]
     if filters.get("search"):
         term = filters["search"].casefold()
         positions = [p for p in positions if term in p["ticker"].casefold() or term in p["instrument_name"].casefold()]
@@ -173,7 +196,9 @@ def get_imported_positions(filters):
 
 def save_imported_positions(positions):
     counts = dict(added=0, updated=0, unchanged=0)
-    with connect() as db:
+    if not positions:
+        return counts
+    with transaction() as db:
         first = positions[0]
         db.execute("INSERT OR IGNORE INTO accounts VALUES (?, ?, 'paper', 'active')",
                    (first["account_id"], first["account_name"]))
@@ -203,13 +228,13 @@ def save_imported_positions(positions):
 
 
 def get_setting(key):
-    with connect() as db:
+    with transaction() as db:
         row = db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else None
 
 
 def save_setting(key, value):
-    with connect() as db:
+    with transaction() as db:
         db.execute(
             "INSERT INTO settings VALUES (?, ?) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -218,7 +243,7 @@ def save_setting(key, value):
 
 
 def delete_setting(key):
-    with connect() as db:
+    with transaction() as db:
         db.execute("DELETE FROM settings WHERE key = ?", (key,))
 
 
@@ -232,7 +257,7 @@ def get_position_notes(position_ids):
         FROM position_notes
         WHERE position_id IN ({placeholders})
     """
-    with connect() as db:
+    with transaction() as db:
         return {
             row["position_id"]: {key: row[key] for key in JOURNAL_FIELDS}
             for row in db.execute(sql, position_ids)
@@ -240,7 +265,7 @@ def get_position_notes(position_ids):
 
 
 def save_position_notes(position_id, entry_note, exit_note):
-    with connect() as db:
+    with transaction() as db:
         db.execute(
             """
             INSERT INTO position_notes (position_id, entry_note, exit_note)
@@ -258,7 +283,7 @@ def save_journal(position_id, values):
     columns = ", ".join(JOURNAL_FIELDS)
     placeholders = ", ".join("?" for _ in JOURNAL_FIELDS)
     updates = ", ".join(f"{key} = excluded.{key}" for key in JOURNAL_FIELDS)
-    with connect() as db:
+    with transaction() as db:
         db.execute(
             f"INSERT INTO position_notes (position_id, {columns}) VALUES (?, {placeholders}) "
             f"ON CONFLICT(position_id) DO UPDATE SET {updates}, updated_at = CURRENT_TIMESTAMP",
@@ -286,5 +311,5 @@ def get_trades(filters):
         JOIN accounts ON accounts.id = trades.account_id
         {where}
     """
-    with connect() as db:
+    with transaction() as db:
         return [dict(row) for row in db.execute(sql, params)]

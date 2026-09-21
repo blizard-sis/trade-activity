@@ -43,3 +43,7 @@ export function resultClass(value) {
   if (value < 0) return "negative";
   return "";
 }
+
+export function formatPercent(value) {
+  return value == null ? "—" : `${value.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%`;
+}

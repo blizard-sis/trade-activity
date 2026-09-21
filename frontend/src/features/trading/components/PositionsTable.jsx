@@ -1,32 +1,33 @@
+import { Table, UnstyledButton } from "@mantine/core";
 import { Message } from "../../../shared/components/Message";
 import { createColumns } from "../columns";
 
 export function PositionsTable({ positions, visibleColumns, onSort, error }) {
+  const selectedPosition = new URLSearchParams(window.location.search).get("position");
   const displayedColumns = createColumns().filter((column) => visibleColumns.includes(column.key));
   return (
     <div className="table-card">
-      <table className="positions-table">
-        <thead><tr>
+      <Table className="positions-table" striped highlightOnHover withTableBorder horizontalSpacing="md" verticalSpacing="sm">
+        <Table.Thead><Table.Tr>
           {displayedColumns.map((column) => (
-            <th
+            <Table.Th
               key={column.key}
               className={`${column.sort ? "sortable" : ""} ${column.align || ""}`}
-              onClick={column.sort ? () => onSort(column.sort) : undefined}
             >
-              {column.label}
-            </th>
+              {column.sort ? <UnstyledButton fw={600} fz="xs" onClick={() => onSort(column.sort)}>{column.label}</UnstyledButton> : column.label}
+            </Table.Th>
           ))}
-        </tr></thead>
-        <tbody>
+        </Table.Tr></Table.Thead>
+        <Table.Tbody>
           {positions.map((position) => (
-            <tr key={position.id} id={`position-${position.id}`} className={new URLSearchParams(window.location.search).get("position") === position.id ? "selected-position" : ""}>
+            <Table.Tr key={position.id} id={`position-${position.id}`} className={selectedPosition === position.id ? "selected-position" : ""}>
               {displayedColumns.map((column) => (
-                <td key={column.key} className={column.align || ""}>{column.render(position)}</td>
+                <Table.Td key={column.key} className={column.align || ""}>{column.render(position)}</Table.Td>
               ))}
-            </tr>
+            </Table.Tr>
           ))}
-        </tbody>
-      </table>
+        </Table.Tbody>
+      </Table>
       {!error && positions.length === 0 && <Message>Нет позиций для выбранных фильтров</Message>}
     </div>
   );

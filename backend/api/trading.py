@@ -5,12 +5,11 @@ from flask import Blueprint, Response, current_app, jsonify, request
 
 from ..domain.analytics import ticker_family
 from ..storage import database
-from ..services.trading import get_monthly_report
+from ..services.reports import get_monthly_report
 from ..services.journal import get_journal_positions
 from ..services.export import build_export_document
 from ..services.sync import sync_trades
-from ..brokers.tradingview import parse_files
-import hashlib
+from ..services.imports import import_tradingview_positions
 
 
 trading_api = Blueprint("trading", __name__, url_prefix="/api")
@@ -22,18 +21,15 @@ def import_tradingview():
     files = request.files.getlist("files")
     if not files or len(files) > 6:
         return jsonify(error="Выберите от 1 до 6 CSV-файлов TradingView"), 400
-    name = request.form.get("account_name", "Paper Trading").strip()
-    if not name or len(name) > 100:
-        return jsonify(error="Название счёта должно содержать от 1 до 100 символов"), 400
-    account_id = "tradingview:" + hashlib.sha256(name.encode()).hexdigest()[:24]
     try:
-        positions, ignored = parse_files([(f.filename or "CSV", f.read()) for f in files], account_id, f"TradingView · {name}")
-        counts = database.save_imported_positions(positions)
+        result = import_tradingview_positions(
+            [(file.filename or "CSV", file.read()) for file in files],
+            request.form.get("account_name", "Paper Trading"),
+        )
     except ValueError as error:
         return jsonify(error=str(error)), 400
-    return jsonify(**counts, account_id=account_id, ignored=ignored,
-                   closed=sum(p["status"] == "closed" for p in positions),
-                   open=sum(p["status"] == "open" for p in positions))
+    return jsonify(result)
+
 
 
 @trading_api.get("/accounts")
@@ -76,6 +72,6 @@ def sync():
         return jsonify(error="Укажите tbank_token в config.json"), 400
 
     try:
-        return jsonify(saved=sync_trades(token))
+        return jsonify(sync_trades(token))
     except Exception as error:
         return jsonify(error=str(error)), 502
