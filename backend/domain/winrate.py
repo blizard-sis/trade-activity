@@ -1,4 +1,5 @@
 """Position-based win rates, independently of currency and profit magnitude."""
+
 from .journal import assess_exit
 
 

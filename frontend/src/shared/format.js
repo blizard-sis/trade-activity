@@ -4,31 +4,32 @@ const money = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 2,
 });
 
-
 export function formatQuantity(value) {
   return quantity.format(value);
 }
-
 
 export function formatMoney(value, currency = "RUB") {
   const code = (currency || "RUB").toUpperCase();
   return value === null ? "—" : `${money.format(value)} ${code === "RUB" ? "₽" : code}`;
 }
 
+const priceFormats = new Map();
 
 export function formatPrice(value, precision, currency) {
   if (value === null) return "—";
-  const formatted = new Intl.NumberFormat("ru-RU", {
-    maximumFractionDigits: precision,
-  }).format(value);
+  if (!priceFormats.has(precision)) {
+    priceFormats.set(
+      precision,
+      new Intl.NumberFormat("ru-RU", { maximumFractionDigits: precision }),
+    );
+  }
+  const formatted = priceFormats.get(precision).format(value);
   return `${formatted} ${currency}`;
 }
-
 
 export function formatDate(value) {
   return value ? new Date(value).toLocaleString("ru-RU") : "—";
 }
-
 
 export function formatMonth(value) {
   return new Date(`${value}-01T00:00:00`).toLocaleDateString("ru-RU", {
@@ -36,7 +37,6 @@ export function formatMonth(value) {
     year: "numeric",
   });
 }
-
 
 export function resultClass(value) {
   if (value > 0) return "positive";

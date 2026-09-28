@@ -1,8 +1,8 @@
-import { summarizeMonths } from "./model";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNotificationError } from "../../shared/notifications";
 import { loadAccounts } from "../../shared/api/accounts";
+import { useNotificationError } from "../../shared/notifications";
 import { api } from "./api";
+import { summarizeMonths } from "./model";
 
 const DEFAULT_FILTERS = {
   account: "",
@@ -21,42 +21,55 @@ export function useMonthlyReport() {
   const pendingSave = useRef(false);
 
   useEffect(() => {
-    let active = true;
-    Promise.all([loadAccounts(), api.loadMonthlyFilters()])
+    const controller = new AbortController();
+    Promise.all([
+      loadAccounts({ signal: controller.signal }),
+      api.loadMonthlyFilters({ signal: controller.signal }),
+    ])
       .then(([loadedAccounts, saved]) => {
-        if (!active) return;
+        if (controller.signal.aborted) return;
         setAccounts(loadedAccounts);
         setFilters({ ...DEFAULT_FILTERS, ...saved });
       })
-      .catch((requestError) => { if (active) setError(requestError.message); });
-    return () => { active = false; };
+      .catch((requestError) => {
+        if (!controller.signal.aborted) setError(requestError.message);
+      });
+    return () => controller.abort();
   }, [setError]);
 
   useEffect(() => {
     if (!filters) return;
-    let active = true;
-    api.tickers(filters.account)
-      .then((items) => { if (active) setTickers(items); })
-      .catch((error) => { if (active) setError(error.message); });
-    return () => { active = false; };
+    const controller = new AbortController();
+    api
+      .tickers(filters.account, { signal: controller.signal })
+      .then((items) => {
+        if (!controller.signal.aborted) setTickers(items);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setError(error.message);
+      });
+    return () => controller.abort();
   }, [filters?.account, setError]);
 
   useEffect(() => {
     if (!filters) return;
-    let active = true;
-    api.monthly(filters)
+    const controller = new AbortController();
+    api
+      .monthly(filters, { signal: controller.signal })
       .then((report) => {
-        if (!active) return;
+        if (controller.signal.aborted) return;
         setMonths(report);
         setError("");
       })
-      .catch((requestError) => { if (active) setError(requestError.message); });
+      .catch((requestError) => {
+        if (!controller.signal.aborted) setError(requestError.message);
+      });
 
     if (pendingSave.current) {
       pendingSave.current = false;
       api.saveMonthlyFilters(filters).catch((requestError) => setError(requestError.message));
     }
-    return () => { active = false; };
+    return () => controller.abort();
   }, [filters, setError]);
 
   const totals = useMemo(() => summarizeMonths(months), [months]);

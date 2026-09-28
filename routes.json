@@ -1,0 +1,17 @@
+[
+  { "id": "trading", "path": "/", "icon": "▤", "label": "Торговля" },
+  { "id": "reports", "path": "/monthly", "icon": "▦", "label": "По месяцам" },
+  {
+    "id": "journal",
+    "path": "/journal",
+    "icon": "✎",
+    "label": "Дневник трейдера"
+  },
+  {
+    "id": "data-transfer",
+    "path": "/data-transfer",
+    "icon": "⇅",
+    "label": "Импорт и экспорт"
+  },
+  { "id": "settings", "path": "/settings", "icon": "⚙", "label": "Настройки" }
+]

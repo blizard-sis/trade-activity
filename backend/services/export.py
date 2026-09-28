@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+
 from ..domain.accounts import selected_accounts
 from ..domain.winrate import exit_category, win_rates
 
@@ -9,9 +10,7 @@ def build_export_document(positions, filters):
         "version": 1,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "filters": {
-            key: value
-            for key, value in filters.items()
-            if key not in {"sort", "direction_sort"}
+            key: value for key, value in filters.items() if key not in {"sort", "direction_sort"}
         },
         "summary": _export_summary(positions),
         "positions": [_export_position(position) for position in positions],

@@ -4,15 +4,28 @@ from flask import Blueprint, jsonify, request
 
 from ..storage import database
 
-
 settings_api = Blueprint("settings", __name__, url_prefix="/api")
 MONTHLY_FILTERS_KEY = "monthly_filters"
 MONTHLY_FILTER_FIELDS = {"account", "ticker_mode", "ticker", "month_from", "month_to"}
 POSITION_TABLE_SETTINGS_KEY = "position_table_settings"
 POSITION_COLUMNS = {
-    "entry_at", "exit_at", "account", "instrument", "direction", "entry_quantity",
-    "remaining", "entry_price", "exit_price", "gross_result", "commission", "net_result",
-    "status", "order_count", "entry_note", "exit_note", "journal",
+    "entry_at",
+    "exit_at",
+    "account",
+    "instrument",
+    "direction",
+    "entry_quantity",
+    "remaining",
+    "entry_price",
+    "exit_price",
+    "gross_result",
+    "commission",
+    "net_result",
+    "status",
+    "order_count",
+    "entry_note",
+    "exit_note",
+    "journal",
 }
 
 
@@ -27,9 +40,7 @@ def monthly_filters():
         return "", 204
 
     filters = {
-        key: value
-        for key, value in request.get_json().items()
-        if key in MONTHLY_FILTER_FIELDS
+        key: value for key, value in request.get_json().items() if key in MONTHLY_FILTER_FIELDS
     }
     database.save_setting(MONTHLY_FILTERS_KEY, json.dumps(filters))
     return jsonify(filters)

@@ -1,16 +1,15 @@
-from datetime import datetime
 import json
+from datetime import datetime
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
 from ..domain.analytics import ticker_family
-from ..storage import database
-from ..services.reports import get_monthly_report
-from ..services.journal import get_journal_positions
 from ..services.export import build_export_document
-from ..services.sync import sync_trades
 from ..services.imports import import_tradingview_positions
-
+from ..services.journal import get_journal_positions
+from ..services.reports import get_monthly_report
+from ..services.sync import sync_trades
+from ..storage import database
 
 trading_api = Blueprint("trading", __name__, url_prefix="/api")
 
@@ -29,7 +28,6 @@ def import_tradingview():
     except ValueError as error:
         return jsonify(error=str(error)), 400
     return jsonify(result)
-
 
 
 @trading_api.get("/accounts")

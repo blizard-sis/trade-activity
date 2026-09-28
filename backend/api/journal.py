@@ -3,7 +3,6 @@ from flask import Blueprint, jsonify, request
 from ..services.journal import get_journal_positions, update_journal
 from ..storage import database
 
-
 journal_api = Blueprint("journal", __name__, url_prefix="/api")
 
 

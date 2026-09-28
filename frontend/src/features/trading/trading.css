@@ -1,17 +1,38 @@
-.journal-link { font-size: 13px; text-decoration: none; }
-tr.selected-position td { background: var(--mantine-color-blue-0); }
-.tradingview-import { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 20px; margin-bottom: 20px; border: 1px solid var(--mantine-color-gray-3); border-radius: var(--mantine-radius-md); background: white; }
-.tradingview-import p, .tradingview-import > strong { flex-basis: 100%; margin: 0; }
-.tradingview-import label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.journal-link {
+  font-size: 13px;
+  text-decoration: none;
+}
+tr.selected-position td {
+  background: var(--mantine-color-blue-0);
+}
 
 /* Keep all seven controls on one row when the content area is wide enough. */
-.trading-filters { display: grid; grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(130px, 1fr)) repeat(2, 140px) minmax(150px, 1.1fr) auto; gap: 10px; }
-.trading-filters .account-filter, .trading-filters .search { width: 100%; min-width: 0; }
+.trading-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 1.4fr) repeat(2, minmax(130px, 1fr)) repeat(2, 140px) minmax(150px, 1.1fr)
+    auto;
+  gap: 10px;
+}
+.trading-filters .account-filter,
+.trading-filters .search {
+  width: 100%;
+  min-width: 0;
+}
 @media (max-width: 1300px) {
-  .trading-filters { display: flex; }
-  .trading-filters .account-filter { width: 240px; }
-  .trading-filters .search { width: 180px; }
+  .trading-filters {
+    display: flex;
+  }
+  .trading-filters .account-filter {
+    width: 240px;
+  }
+  .trading-filters .search {
+    width: 180px;
+  }
 }
 @media (max-width: 600px) {
-  .trading-filters .account-filter, .trading-filters .search { width: 100%; }
+  .trading-filters .account-filter,
+  .trading-filters .search {
+    width: 100%;
+  }
 }

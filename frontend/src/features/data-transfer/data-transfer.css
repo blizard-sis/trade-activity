@@ -1,0 +1,5 @@
+.position-filter-grid .account-filter,
+.position-filter-grid .search {
+  width: 100%;
+  min-width: 0;
+}

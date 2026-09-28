@@ -1,3 +1,3 @@
 import { request } from "./client";
 
-export const loadAccounts = () => request("/api/accounts");
+export const loadAccounts = (options) => request("/api/accounts", options);

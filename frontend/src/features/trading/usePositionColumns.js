@@ -7,13 +7,18 @@ export function usePositionColumns(setError) {
   const changed = useRef(false);
 
   useEffect(() => {
-    let active = true;
-    api.loadPositionTableSettings().then((settings) => {
-      if (!active || changed.current) return;
-      const available = settings.visible_columns?.filter((key) => DEFAULT_COLUMNS.includes(key));
-      if (available?.length) setVisibleColumns(available);
-    }).catch((error) => { if (active) setError(error.message); });
-    return () => { active = false; };
+    const controller = new AbortController();
+    api
+      .loadPositionTableSettings({ signal: controller.signal })
+      .then((settings) => {
+        if (controller.signal.aborted || changed.current) return;
+        const available = settings.visible_columns?.filter((key) => DEFAULT_COLUMNS.includes(key));
+        if (available?.length) setVisibleColumns(available);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setError(error.message);
+      });
+    return () => controller.abort();
   }, [setError]);
 
   async function toggleColumn(column) {

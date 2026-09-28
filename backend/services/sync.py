@@ -1,5 +1,5 @@
-from ..storage import database
 from ..brokers.tbank import TBankClient, operation_trades
+from ..storage import database
 
 
 def sync_trades(token):
@@ -24,4 +24,3 @@ def sync_trades(token):
 
     result["saved"] = result["added"] + result["updated"] + result["unchanged"]
     return result
-

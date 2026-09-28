@@ -2,10 +2,9 @@ from decimal import Decimal
 
 import truststore
 
-
 truststore.inject_into_ssl()
 
-import requests
+import requests  # noqa: E402  # Install system certificates before importing the HTTP client.
 
 API_URL = "https://invest-public-api.tbank.ru/rest/tinkoff.public.invest.api.contract.v1"
 TRADE_TYPES = [
@@ -46,14 +45,18 @@ class TBankClient:
     def operations(self, account_id):
         cursor = ""
         while True:
-            response = self._post("OperationsService", "GetOperationsByCursor", {
-                "accountId": account_id,
-                "cursor": cursor,
-                "limit": 1000,
-                "operationTypes": TRADE_TYPES,
-                "state": "OPERATION_STATE_EXECUTED",
-                "withoutTrades": False,
-            })
+            response = self._post(
+                "OperationsService",
+                "GetOperationsByCursor",
+                {
+                    "accountId": account_id,
+                    "cursor": cursor,
+                    "limit": 1000,
+                    "operationTypes": TRADE_TYPES,
+                    "state": "OPERATION_STATE_EXECUTED",
+                    "withoutTrades": False,
+                },
+            )
             yield from response.get("items", [])
             if not response.get("hasNext"):
                 return
@@ -75,11 +78,7 @@ def operation_trades(account_id, operation, instrument):
         quantity = int(trade.get("quantity", 0))
         yield {
             "account_id": account_id,
-            "trade_id": (
-                trade.get("tradeId")
-                or trade.get("num")
-                or f'{operation["id"]}:{index}'
-            ),
+            "trade_id": (trade.get("tradeId") or trade.get("num") or f"{operation['id']}:{index}"),
             "operation_id": operation.get("id", ""),
             "instrument_uid": operation.get("instrumentUid", ""),
             "ticker": instrument.get("ticker", ""),

@@ -1,17 +1,28 @@
-import sqlite3
 import json
+import sqlite3
 from contextlib import contextmanager
 
 from ..config import ROOT
+from ..domain.accounts import account_source, selected_accounts
 from ..domain.journal import JOURNAL_FIELDS
-from ..domain.accounts import selected_accounts, account_source
-
 
 DATABASE = ROOT / "trade_activity.sqlite3"
 TRADE_FIELDS = (
-    "account_id", "trade_id", "operation_id", "instrument_uid", "ticker",
-    "instrument_name", "side", "quantity", "price", "currency", "commission",
-    "commission_currency", "payment", "payment_currency", "executed_at",
+    "account_id",
+    "trade_id",
+    "operation_id",
+    "instrument_uid",
+    "ticker",
+    "instrument_name",
+    "side",
+    "quantity",
+    "price",
+    "currency",
+    "commission",
+    "commission_currency",
+    "payment",
+    "payment_currency",
+    "executed_at",
 )
 
 
@@ -66,6 +77,24 @@ def initialize():
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS instrument_catalog (
+                provider TEXT NOT NULL,
+                instrument_id TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                PRIMARY KEY (provider, instrument_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS instrument_links (
+                id TEXT PRIMARY KEY,
+                forecast_provider TEXT NOT NULL,
+                forecast_id TEXT NOT NULL,
+                execution_provider TEXT NOT NULL,
+                execution_id TEXT NOT NULL,
+                UNIQUE (forecast_provider, forecast_id, execution_provider, execution_id),
+                FOREIGN KEY (forecast_provider, forecast_id) REFERENCES instrument_catalog(provider, instrument_id),
+                FOREIGN KEY (execution_provider, execution_id) REFERENCES instrument_catalog(provider, instrument_id)
             );
 
             CREATE TABLE IF NOT EXISTS imported_positions (
@@ -127,7 +156,12 @@ def save_account(account):
 
 
 def save_trades(trades, *, with_counts=False):
-    rows = list({(trade["account_id"], trade["trade_id"]): tuple(trade[field] for field in TRADE_FIELDS) for trade in trades}.values())
+    rows = list(
+        {
+            (trade["account_id"], trade["trade_id"]): tuple(trade[field] for field in TRADE_FIELDS)
+            for trade in trades
+        }.values()
+    )
     counts = dict(added=0, updated=0, unchanged=0)
     if not rows:
         return counts if with_counts else 0
@@ -144,7 +178,13 @@ def save_trades(trades, *, with_counts=False):
                 f"SELECT {', '.join(TRADE_FIELDS)} FROM trades WHERE account_id = ? AND trade_id = ?",
                 row[:2],
             ).fetchone()
-            category = "added" if previous is None else "unchanged" if tuple(previous) == row else "updated"
+            category = (
+                "added"
+                if previous is None
+                else "unchanged"
+                if tuple(previous) == row
+                else "updated"
+            )
             counts[category] += 1
             if category != "unchanged":
                 db.execute(sql, row)
@@ -153,7 +193,9 @@ def save_trades(trades, *, with_counts=False):
 
 def get_accounts():
     with transaction() as db:
-        return [account_source(dict(row)) for row in db.execute("SELECT * FROM accounts ORDER BY name")]
+        return [
+            account_source(dict(row)) for row in db.execute("SELECT * FROM accounts ORDER BY name")
+        ]
 
 
 def get_instruments():
@@ -190,7 +232,11 @@ def get_imported_positions(filters):
     positions = [json.loads(row["payload"]) for row in rows]
     if filters.get("search"):
         term = filters["search"].casefold()
-        positions = [p for p in positions if term in p["ticker"].casefold() or term in p["instrument_name"].casefold()]
+        positions = [
+            p
+            for p in positions
+            if term in p["ticker"].casefold() or term in p["instrument_name"].casefold()
+        ]
     return positions
 
 
@@ -200,31 +246,53 @@ def save_imported_positions(positions):
         return counts
     with transaction() as db:
         first = positions[0]
-        db.execute("INSERT OR IGNORE INTO accounts VALUES (?, ?, 'paper', 'active')",
-                   (first["account_id"], first["account_name"]))
+        db.execute(
+            "INSERT OR IGNORE INTO accounts VALUES (?, ?, 'paper', 'active')",
+            (first["account_id"], first["account_name"]),
+        )
         for position in positions:
-            old = db.execute("SELECT payload FROM imported_positions WHERE id = ?", (position["id"],)).fetchone()
-            payload = json.dumps(position, ensure_ascii=False, sort_keys=True)
+            old = db.execute(
+                "SELECT payload FROM imported_positions WHERE id = ?", (position["id"],)
+            ).fetchone()
             if old:
                 previous = json.loads(old["payload"])
                 # A previously closed position must not reopen after an older export.
                 if previous["status"] == "closed" and position["status"] == "open":
                     counts["unchanged"] += 1
                     continue
-                # Keep precise timestamps/currency when a later upload omits supporting tabs.
-                for field in ("entry_at", "exit_at"):
-                    if previous[field] and position[field] and previous[field][:16] == position[field][:16] and position[field].endswith(":00"):
-                        position[field] = previous[field]
-                if not position["currency"]:
-                    position["currency"] = previous["currency"]
-                if previous["net_result"] is not None and position["net_result"] is not None and abs(previous["net_result"] - position["net_result"]) < 0.011 and position["net_result"] == round(position["net_result"], 2):
-                    position["net_result"] = previous["net_result"]
-                    position["gross_result"] = position["net_result"] + position["commission"]
-                payload = json.dumps(position, ensure_ascii=False, sort_keys=True)
-            counts["unchanged" if old and old["payload"] == payload else "updated" if old else "added"] += 1
-            db.execute("INSERT INTO imported_positions VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-                       (position["id"], position["account_id"], payload))
+                _preserve_import_details(position, previous)
+            payload = json.dumps(position, ensure_ascii=False, sort_keys=True)
+            if old and old["payload"] == payload:
+                counts["unchanged"] += 1
+                continue
+            counts["updated" if old else "added"] += 1
+            db.execute(
+                "INSERT INTO imported_positions VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+                (position["id"], position["account_id"], payload),
+            )
     return counts
+
+
+def _preserve_import_details(position, previous):
+    """Keep precise values when a later import omits supporting TradingView tabs."""
+    for field in ("entry_at", "exit_at"):
+        if (
+            previous[field]
+            and position[field]
+            and previous[field][:16] == position[field][:16]
+            and position[field].endswith(":00")
+        ):
+            position[field] = previous[field]
+    if not position["currency"]:
+        position["currency"] = previous["currency"]
+    if (
+        previous["net_result"] is not None
+        and position["net_result"] is not None
+        and abs(previous["net_result"] - position["net_result"]) < 0.011
+        and position["net_result"] == round(position["net_result"], 2)
+    ):
+        position["net_result"] = previous["net_result"]
+        position["gross_result"] = position["net_result"] + position["commission"]
 
 
 def get_setting(key):

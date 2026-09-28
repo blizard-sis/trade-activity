@@ -2,7 +2,6 @@
 
 from decimal import Decimal, InvalidOperation
 
-
 JOURNAL_FIELDS = ("entry_note", "exit_note", "planned_stop", "planned_take")
 
 
@@ -18,11 +17,20 @@ def _number(value):
 def assess_exit(position):
     def result(reason, label, explanation, inferred=False):
         if reason == "unknown":
-            return dict(reason="manual", label="Вышел руками",
-                        explanation="По правилу журнала: если стоп или тейк не определён, выход считается ручным.",
-                        inferred=True, source="default_rule")
-        return dict(reason=reason, label=label, explanation=explanation,
-                    inferred=inferred, source="plan_prices" if inferred else "insufficient_data")
+            return dict(
+                reason="manual",
+                label="Вышел руками",
+                explanation="По правилу журнала: если стоп или тейк не определён, выход считается ручным.",
+                inferred=True,
+                source="default_rule",
+            )
+        return dict(
+            reason=reason,
+            label=label,
+            explanation=explanation,
+            inferred=inferred,
+            source="plan_prices" if inferred else "insufficient_data",
+        )
 
     if position["status"] != "closed":
         return result("open", "Позиция открыта", "Причина выхода появится после полного закрытия.")
@@ -33,11 +41,17 @@ def assess_exit(position):
     if not prices or any(price is None for price in prices):
         return result("unknown", "Не определено", "Нет цен исполнений выхода.")
     if stop is None and take is None:
-        return result("unknown", "Не определено", "Укажите плановые стоп и тейк и сохраните разбор.")
+        return result(
+            "unknown", "Не определено", "Укажите плановые стоп и тейк и сохраните разбор."
+        )
 
     sign = 1 if position["direction"] == "long" else -1
     if stop is not None and take is not None and sign * stop >= sign * take:
-        return result("unknown", "Не определено", "Проверьте уровни: для лонга стоп ниже тейка, для шорта — выше.")
+        return result(
+            "unknown",
+            "Не определено",
+            "Проверьте уровни: для лонга стоп ниже тейка, для шорта — выше.",
+        )
 
     reasons = set()
     for price in prices:
@@ -51,9 +65,23 @@ def assess_exit(position):
             reasons.add("unknown")
 
     if len(reasons) > 1:
-        return result("mixed", "Смешанный выход", "Части позиции закрыты в разных зонах плана; единую причину определить нельзя.", True)
+        return result(
+            "mixed",
+            "Смешанный выход",
+            "Части позиции закрыты в разных зонах плана; единую причину определить нельзя.",
+            True,
+        )
     reason = reasons.pop()
     labels = {"stop": "Стоп-лосс", "take": "Тейк-профит", "manual": "Вышел руками"}
     if reason not in labels:
-        return result("unknown", "Не определено", "Цена не достигла указанного уровня. Для оценки нужны оба уровня плана.")
-    return result(reason, labels[reason], "Оценка по ценам всех исполнений и сохранённым уровням плана; тип заявки брокером не подтверждён.", True)
+        return result(
+            "unknown",
+            "Не определено",
+            "Цена не достигла указанного уровня. Для оценки нужны оба уровня плана.",
+        )
+    return result(
+        reason,
+        labels[reason],
+        "Оценка по ценам всех исполнений и сохранённым уровням плана; тип заявки брокером не подтверждён.",
+        True,
+    )

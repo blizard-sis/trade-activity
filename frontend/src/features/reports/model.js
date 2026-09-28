@@ -12,8 +12,10 @@ export function summarizeMonths(months) {
     net[row.currency] = (net[row.currency] || 0) + row.net_result;
   }
   return {
-    takes, stops, net,
-    winRate: positions ? wins / positions * 100 : null,
-    cleanWinRate: takes + stops ? takes / (takes + stops) * 100 : null,
+    takes,
+    stops,
+    net,
+    winRate: positions ? (wins / positions) * 100 : null,
+    cleanWinRate: takes + stops ? (takes / (takes + stops)) * 100 : null,
   };
 }

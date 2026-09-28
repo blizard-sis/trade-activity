@@ -1,8 +1,8 @@
 import re
 from dataclasses import dataclass, field
 from itertools import groupby
-from .winrate import exit_category, win_rates
 
+from .winrate import exit_category, win_rates
 
 FUTURES_TICKER = re.compile(r"^(.+)[FGHJKMNQUVXZ]\d$")
 
@@ -51,7 +51,7 @@ class OpenPosition:
     def start(cls, trade, quantity):
         direction = "long" if trade["side"] == "buy" else "short"
         position = cls(
-            position_id=f'{trade["account_id"]}:{trade["instrument_uid"]}:{trade["trade_id"]}:{direction}',
+            position_id=f"{trade['account_id']}:{trade['instrument_uid']}:{trade['trade_id']}:{direction}",
             account_id=trade["account_id"],
             account_name=trade["account_name"],
             instrument_uid=trade["instrument_uid"],
@@ -118,8 +118,12 @@ class OpenPosition:
 
 
 def build_positions(trades):
-    group_key = lambda trade: (trade["account_id"], trade["instrument_uid"])
-    sort_key = lambda trade: (*group_key(trade), trade["executed_at"], trade["trade_id"])
+    def group_key(trade):
+        return trade["account_id"], trade["instrument_uid"]
+
+    def sort_key(trade):
+        return *group_key(trade), trade["executed_at"], trade["trade_id"]
+
     positions = []
 
     for _, instrument_trades in groupby(sorted(trades, key=sort_key), key=group_key):
@@ -172,7 +176,9 @@ def filter_positions(positions, filters):
     }
     field = sort_fields.get(filters.get("sort"), "entry_at")
     reverse = filters.get("direction_sort") != "asc"
-    return sorted(positions, key=lambda item: (item[field] is not None, item[field]), reverse=reverse)
+    return sorted(
+        positions, key=lambda item: (item[field] is not None, item[field]), reverse=reverse
+    )
 
 
 def monthly_report(positions, filters):
@@ -182,21 +188,24 @@ def monthly_report(positions, filters):
     for position in positions:
         month = position["exit_at"][:7]
         currency = (position["result_currency"] or "rub").upper()
-        row = months.setdefault((month, currency), {
-            "month": month,
-            "currency": currency,
-            "positions": 0,
-            "wins": 0,
-            "losses": 0,
-            "takes": 0,
-            "stops": 0,
-            "manual": 0,
-            "mixed": 0,
-            "unknown": 0,
-            "gross_result": 0,
-            "commission": 0,
-            "net_result": 0,
-        })
+        row = months.setdefault(
+            (month, currency),
+            {
+                "month": month,
+                "currency": currency,
+                "positions": 0,
+                "wins": 0,
+                "losses": 0,
+                "takes": 0,
+                "stops": 0,
+                "manual": 0,
+                "mixed": 0,
+                "unknown": 0,
+                "gross_result": 0,
+                "commission": 0,
+                "net_result": 0,
+            },
+        )
         row["positions"] += 1
         row["wins"] += position["net_result"] > 0
         row["losses"] += position["net_result"] < 0

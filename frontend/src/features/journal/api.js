@@ -1,10 +1,7 @@
-import { request, queryString } from "../../shared/api/client";
+import { request, queryString, writeJson } from "../../shared/api/client";
 
 export const api = {
-  journal: (filters) => request(`/api/journal?${queryString(filters)}`),
-  saveJournal: (positionId, values) => request(`/api/journal/${encodeURIComponent(positionId)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(values),
-  }),
+  journal: (filters, options) => request(`/api/journal?${queryString(filters)}`, options),
+  saveJournal: (positionId, values) =>
+    writeJson(`/api/journal/${encodeURIComponent(positionId)}`, "PUT", values),
 };

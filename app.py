@@ -1,7 +1,6 @@
 from backend import create_app
 from backend.config import load_config
 
-
 app = create_app()
 
 

@@ -9,7 +9,15 @@ export function useNotificationError() {
   const [error, setError] = useState("");
   const reportError = useCallback((message) => {
     setError(message);
-    if (message) notifications.show({ id: `error-${message}`, title: "Не удалось выполнить действие", message, color: "red", autoClose: false, withCloseButton: true });
+    if (message)
+      notifications.show({
+        id: `error-${message}`,
+        title: "Не удалось выполнить действие",
+        message,
+        color: "red",
+        autoClose: false,
+        withCloseButton: true,
+      });
   }, []);
   return [error, reportError];
 }

@@ -1,4 +1,12 @@
-import { createTheme, Button, Select, MultiSelect, TextInput, FileInput, Textarea } from "@mantine/core";
+import {
+  createTheme,
+  Button,
+  Select,
+  MultiSelect,
+  TextInput,
+  FileInput,
+  Textarea,
+} from "@mantine/core";
 
 export const theme = createTheme({
   primaryColor: "blue",
