@@ -1,20 +1,20 @@
-import { Button, TextInput } from "@mantine/core";
+import { Button, SegmentedControl, TextInput } from "@mantine/core";
 import { Layout } from "../../app/Layout";
 import { AccountPicker } from "../../shared/components/AccountPicker";
 import { FilterSelect } from "../../shared/components/FilterSelect";
 import { Message } from "../../shared/components/Message";
 import { formatMoney, formatPercent, resultClass } from "../../shared/format";
-import { MonthlyTable } from "./components/MonthlyTable";
-import { useMonthlyReport } from "./useMonthlyReport";
+import { TradingReportTable } from "./components/TradingReportTable";
+import { useTradingReport } from "./useTradingReport";
 import "./reports.css";
 
-export function MonthlyPage() {
-  const { accounts, tickers, filters, months, error, totals, updateFilter, clearFilters } =
-    useMonthlyReport();
+export function TradingReportPage() {
+  const { accounts, tickers, filters, rows, loading, error, totals, updateFilter, clearFilters } =
+    useTradingReport();
 
   if (!filters) {
     return (
-      <Layout title="Помесячный отчёт" subtitle="Загрузка…">
+      <Layout title="Отчёт торговли" subtitle="Загрузка…">
         <Message>
           {error
             ? "Не удалось загрузить отчёт. Обновите страницу, чтобы повторить."
@@ -25,7 +25,20 @@ export function MonthlyPage() {
   }
 
   return (
-    <Layout title="Помесячный отчёт" subtitle={`Месяцев: ${months.length}`}>
+    <Layout
+      title="Отчёт торговли"
+      subtitle={`${filters.group_by === "day" ? "Дней" : "Месяцев"}: ${new Set(rows.map((row) => row.period)).size}`}
+    >
+      <SegmentedControl
+        mb="md"
+        aria-label="Группировка отчёта"
+        value={filters.group_by}
+        onChange={(value) => updateFilter("group_by", value)}
+        data={[
+          { value: "month", label: "По месяцам" },
+          { value: "day", label: "По дням" },
+        ]}
+      />
       <section className="filters report-filters">
         <AccountPicker
           accounts={accounts}
@@ -55,16 +68,16 @@ export function MonthlyPage() {
           data={tickers.map((ticker) => ({ value: ticker, label: ticker }))}
         />
         <TextInput
-          aria-label="Месяц от"
-          type="month"
-          value={filters.month_from}
-          onChange={(event) => updateFilter("month_from", event.target.value)}
+          aria-label={filters.group_by === "day" ? "Дата от" : "Месяц от"}
+          type={filters.group_by === "day" ? "date" : "month"}
+          value={filters.period_from}
+          onChange={(event) => updateFilter("period_from", event.target.value)}
         />
         <TextInput
-          aria-label="Месяц до"
-          type="month"
-          value={filters.month_to}
-          onChange={(event) => updateFilter("month_to", event.target.value)}
+          aria-label={filters.group_by === "day" ? "Дата до" : "Месяц до"}
+          type={filters.group_by === "day" ? "date" : "month"}
+          value={filters.period_to}
+          onChange={(event) => updateFilter("period_to", event.target.value)}
         />
         <Button onClick={clearFilters}>Очистить фильтры</Button>
 
@@ -96,11 +109,11 @@ export function MonthlyPage() {
       </section>
 
       <p className="summary">
-        Итоговый: прибыльные после комиссии / все закрытые. Чистый: тейки / (тейки + стопы). Причины
-        оцениваются по уровням плана из дневника; выходы без достаточных данных не входят в чистый
-        винрейт.
+        Итоговый: прибыльные после комиссии / все закрытые. Чистый: тейки / (тейки + стопы). Периоды
+        определяются по дате выхода. Причины оцениваются по уровням плана из дневника; выходы без
+        достаточных данных не входят в чистый винрейт.
       </p>
-      <MonthlyTable months={months} error={error} />
+      <TradingReportTable groupBy={filters.group_by} rows={rows} error={error} loading={loading} />
     </Layout>
   );
 }

@@ -1,11 +1,9 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from backend import create_app
-from backend.config import ROOT
 
 
 class FrontendRoutesTests(unittest.TestCase):
@@ -15,6 +13,8 @@ class FrontendRoutesTests(unittest.TestCase):
         frontend = Path(temp.name)
         self.document = '<!doctype html><div id="root"></div>'
         (frontend / "index.html").write_text(self.document, encoding="utf-8")
+        (frontend / "assets").mkdir()
+        (frontend / "assets" / "app.js").write_text('console.log("app");', encoding="utf-8")
         frontend_patch = patch("backend.FRONTEND", frontend)
         frontend_patch.start()
         self.addCleanup(frontend_patch.stop)
@@ -24,20 +24,40 @@ class FrontendRoutesTests(unittest.TestCase):
         ):
             self.app = create_app()
         self.client = self.app.test_client()
-        self.routes = json.loads((ROOT / "routes.json").read_text(encoding="utf-8"))
 
-    def test_every_navigation_route_serves_the_app_on_direct_visit(self):
-        self.assertEqual(len({route["id"] for route in self.routes}), len(self.routes))
-        self.assertEqual(len({route["path"] for route in self.routes}), len(self.routes))
-        for route in self.routes:
-            with self.subTest(path=route["path"]):
-                response = self.client.get(route["path"])
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.mimetype, "text/html")
-                self.assertEqual(response.get_data(as_text=True), self.document)
-                response.close()
+    def test_client_routes_work_without_a_server_route_list(self):
+        # Include a new nested route: no frontend source or route manifest is needed.
+        for path in ("/", "/monthly", "/journal", "/settings", "/data-transfer", "/new/page"):
+            with self.subTest(path=path):
+                with self.client.get(path) as response:
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.mimetype, "text/html")
+                    self.assertEqual(response.get_data(as_text=True), self.document)
 
-    def test_unknown_routes_and_missing_assets_remain_not_found(self):
-        for path in ("/missing", "/api/missing", "/assets/missing.js"):
+    def test_missing_api_and_assets_remain_not_found(self):
+        for path in (
+            "/api",
+            "/api/missing",
+            "/assets",
+            "/assets/missing",
+            "/assets/missing.js",
+            "/missing.css",
+            "/favicon.ico",
+        ):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 404)
+
+    def test_existing_assets_are_served_as_files(self):
+        with self.client.get("/assets/app.js") as response:
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("javascript", response.mimetype)
+            self.assertEqual(response.get_data(as_text=True), 'console.log("app");')
+
+    def test_existing_api_routes_are_not_replaced_by_the_app(self):
+        with patch("backend.api.trading.database.get_accounts", return_value=[]):
+            response = self.client.get("/api/accounts")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), [])
+
+    def test_post_to_client_route_is_not_served_as_html(self):
+        self.assertEqual(self.client.post("/new/page").status_code, 405)

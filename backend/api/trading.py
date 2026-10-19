@@ -7,7 +7,7 @@ from ..domain.analytics import ticker_family
 from ..services.export import build_export_document
 from ..services.imports import import_tradingview_positions
 from ..services.journal import get_journal_positions
-from ..services.reports import get_monthly_report
+from ..services.reports import get_monthly_report, get_trading_report
 from ..services.sync import sync_trades
 from ..storage import database
 
@@ -73,3 +73,11 @@ def sync():
         return jsonify(sync_trades(token))
     except Exception as error:
         return jsonify(error=str(error)), 502
+
+
+@trading_api.get("/reports/trading")
+def trading_report():
+    try:
+        return jsonify(get_trading_report(request.args))
+    except ValueError as error:
+        return jsonify(error=str(error)), 400

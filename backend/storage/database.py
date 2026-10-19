@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from ..config import ROOT
 from ..domain.accounts import account_source, selected_accounts
 from ..domain.journal import JOURNAL_FIELDS
+from ..domain.numbers import number_or_none
 
 DATABASE = ROOT / "trade_activity.sqlite3"
 TRADE_FIELDS = (
@@ -110,9 +111,90 @@ def initialize():
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS plans (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL DEFAULT '',
+                thesis TEXT NOT NULL DEFAULT '',
+                review TEXT NOT NULL DEFAULT '',
+                direction TEXT NOT NULL DEFAULT ''
+                    CHECK (direction IN ('', 'long', 'short')),
+                account_id TEXT,
+                forecast_provider TEXT,
+                forecast_id TEXT,
+                forecast_payload TEXT NOT NULL DEFAULT '{}',
+                execution_provider TEXT,
+                execution_id TEXT,
+                execution_payload TEXT NOT NULL DEFAULT '{}',
+                entry_zone REAL,
+                planned_stop REAL,
+                planned_take REAL,
+                planned_for TEXT,
+                valid_until TEXT,
+                parent_plan_id TEXT,
+                cover_attachment_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (account_id) REFERENCES accounts(id),
+                FOREIGN KEY (parent_plan_id) REFERENCES plans(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS plan_positions (
+                plan_id TEXT NOT NULL,
+                position_id TEXT NOT NULL,
+                account_id TEXT NOT NULL,
+                instrument_uid TEXT NOT NULL,
+                entry_trade_id TEXT NOT NULL DEFAULT '',
+                direction TEXT NOT NULL CHECK (direction IN ('long', 'short')),
+                link_source TEXT NOT NULL DEFAULT 'manual'
+                    CHECK (link_source IN ('manual', 'auto', 'migration')),
+                linked_at TEXT NOT NULL,
+                planned_stop_override TEXT NOT NULL DEFAULT '',
+                planned_take_override TEXT NOT NULL DEFAULT '',
+                stop_at_close TEXT NOT NULL DEFAULT '',
+                take_at_close TEXT NOT NULL DEFAULT '',
+                closed_at TEXT,
+                PRIMARY KEY (plan_id, position_id),
+                UNIQUE (position_id),
+                FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS plan_attachments (
+                id TEXT PRIMARY KEY,
+                plan_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                mime TEXT NOT NULL,
+                size INTEGER NOT NULL,
+                width INTEGER,
+                height INTEGER,
+                caption TEXT NOT NULL DEFAULT '',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS sync_runs (
+                id TEXT PRIMARY KEY,
+                started_at TEXT NOT NULL,
+                finished_at TEXT,
+                status TEXT NOT NULL,
+                accounts INTEGER NOT NULL DEFAULT 0,
+                added INTEGER NOT NULL DEFAULT 0,
+                updated INTEGER NOT NULL DEFAULT 0,
+                unchanged INTEGER NOT NULL DEFAULT 0,
+                error TEXT NOT NULL DEFAULT '',
+                changes TEXT NOT NULL DEFAULT '[]'
+            );
+
             CREATE INDEX IF NOT EXISTS imported_positions_account ON imported_positions(account_id);
             CREATE INDEX IF NOT EXISTS trades_date ON trades(executed_at);
             CREATE INDEX IF NOT EXISTS trades_ticker ON trades(ticker);
+            CREATE INDEX IF NOT EXISTS plans_created ON plans(created_at);
+            CREATE INDEX IF NOT EXISTS plans_account ON plans(account_id);
+            CREATE INDEX IF NOT EXISTS plans_execution
+                ON plans(execution_provider, execution_id);
+            CREATE INDEX IF NOT EXISTS plan_attachments_plan
+                ON plan_attachments(plan_id, sort_order);
+            CREATE INDEX IF NOT EXISTS sync_runs_started ON sync_runs(started_at);
             """
         )
         _migrate_trades(db)
@@ -120,7 +202,197 @@ def initialize():
         for name in ("planned_stop", "planned_take"):
             if name not in note_columns:
                 db.execute(f"ALTER TABLE position_notes ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+        _migrate_plans(db)
+        _migrate_plan_numbers(db)
+        _migrate_plan_attachments(db)
+        db.execute("DROP TABLE IF EXISTS plan_events")
         db.execute("PRAGMA optimize")
+
+
+def _migrate_plan_numbers(db):
+    """Convert plan price fields from free text to REAL values."""
+    columns = {
+        row["name"]: (row["type"] or "").upper() for row in db.execute("PRAGMA table_info(plans)")
+    }
+    if all(
+        "REAL" in columns.get(name, "") for name in ("entry_zone", "planned_stop", "planned_take")
+    ):
+        return
+
+    fields = (
+        "id",
+        "title",
+        "thesis",
+        "review",
+        "direction",
+        "account_id",
+        "forecast_provider",
+        "forecast_id",
+        "forecast_payload",
+        "execution_provider",
+        "execution_id",
+        "execution_payload",
+        "entry_zone",
+        "planned_stop",
+        "planned_take",
+        "planned_for",
+        "valid_until",
+        "parent_plan_id",
+        "cover_attachment_id",
+        "created_at",
+        "updated_at",
+    )
+    rows = db.execute("SELECT * FROM plans").fetchall()
+    db.execute("DROP TABLE IF EXISTS plans_numbers")
+    db.execute(
+        """
+        CREATE TABLE plans_numbers (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            thesis TEXT NOT NULL DEFAULT '',
+            review TEXT NOT NULL DEFAULT '',
+            direction TEXT NOT NULL DEFAULT ''
+                CHECK (direction IN ('', 'long', 'short')),
+            account_id TEXT,
+            forecast_provider TEXT,
+            forecast_id TEXT,
+            forecast_payload TEXT NOT NULL DEFAULT '{}',
+            execution_provider TEXT,
+            execution_id TEXT,
+            execution_payload TEXT NOT NULL DEFAULT '{}',
+            entry_zone REAL,
+            planned_stop REAL,
+            planned_take REAL,
+            planned_for TEXT,
+            valid_until TEXT,
+            parent_plan_id TEXT,
+            cover_attachment_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id),
+            FOREIGN KEY (parent_plan_id) REFERENCES plans(id)
+        )
+        """
+    )
+    placeholders = ", ".join("?" for _ in fields)
+    sql = f"INSERT INTO plans_numbers ({', '.join(fields)}) VALUES ({placeholders})"
+    for row in rows:
+        values = [
+            number_or_none(row[name])
+            if name in {"entry_zone", "planned_stop", "planned_take"}
+            else row[name]
+            for name in fields
+        ]
+        db.execute(sql, values)
+    db.execute("DROP TABLE plans")
+    db.execute("ALTER TABLE plans_numbers RENAME TO plans")
+    db.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS plans_created ON plans(created_at);
+        CREATE INDEX IF NOT EXISTS plans_account ON plans(account_id);
+        CREATE INDEX IF NOT EXISTS plans_execution
+            ON plans(execution_provider, execution_id);
+        """
+    )
+
+
+def _migrate_plan_attachments(db):
+    """Drop timeline references and stages from plan attachments."""
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(plan_attachments)")}
+    if "event_id" not in columns and "stage" not in columns:
+        return
+    db.execute("DROP TABLE IF EXISTS plan_attachments_new")
+    db.execute(
+        """
+        CREATE TABLE plan_attachments_new (
+            id TEXT PRIMARY KEY,
+            plan_id TEXT NOT NULL,
+            path TEXT NOT NULL,
+            mime TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            width INTEGER,
+            height INTEGER,
+            caption TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute(
+        """
+        INSERT INTO plan_attachments_new (
+            id, plan_id, path, mime, size, width, height, caption, sort_order, created_at
+        )
+        SELECT id, plan_id, path, mime, size, width, height, caption, sort_order, created_at
+        FROM plan_attachments
+        """
+    )
+    db.execute("DROP TABLE plan_attachments")
+    db.execute("ALTER TABLE plan_attachments_new RENAME TO plan_attachments")
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS plan_attachments_plan ON plan_attachments(plan_id, sort_order)"
+    )
+
+
+def _migrate_plans(db):
+    """Drop the obsolete migration marker and status workflow from plans."""
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(plans)")}
+    if not {"origin", "status", "tags", "entry_method"} & columns:
+        return
+    db.executescript(
+        """
+        DROP TABLE IF EXISTS plans_new;
+        CREATE TABLE plans_new (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            thesis TEXT NOT NULL DEFAULT '',
+            review TEXT NOT NULL DEFAULT '',
+            direction TEXT NOT NULL DEFAULT ''
+                CHECK (direction IN ('', 'long', 'short')),
+            account_id TEXT,
+            forecast_provider TEXT,
+            forecast_id TEXT,
+            forecast_payload TEXT NOT NULL DEFAULT '{}',
+            execution_provider TEXT,
+            execution_id TEXT,
+            execution_payload TEXT NOT NULL DEFAULT '{}',
+            entry_zone TEXT NOT NULL DEFAULT '',
+            planned_stop TEXT NOT NULL DEFAULT '',
+            planned_take TEXT NOT NULL DEFAULT '',
+            planned_for TEXT,
+            valid_until TEXT,
+            parent_plan_id TEXT,
+            cover_attachment_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES accounts(id),
+            FOREIGN KEY (parent_plan_id) REFERENCES plans(id)
+        );
+        INSERT INTO plans_new (
+            id, title, thesis, review, direction, account_id,
+            forecast_provider, forecast_id, forecast_payload,
+            execution_provider, execution_id, execution_payload,
+            entry_zone, planned_stop, planned_take,
+            planned_for, valid_until, parent_plan_id,
+            cover_attachment_id, created_at, updated_at
+        )
+        SELECT
+            id, title, thesis, review, direction, account_id,
+            forecast_provider, forecast_id, forecast_payload,
+            execution_provider, execution_id, execution_payload,
+            entry_zone, planned_stop, planned_take,
+            planned_for, valid_until, parent_plan_id,
+            cover_attachment_id, created_at, updated_at
+        FROM plans;
+        DROP TABLE plans;
+        ALTER TABLE plans_new RENAME TO plans;
+        CREATE INDEX IF NOT EXISTS plans_created ON plans(created_at);
+        CREATE INDEX IF NOT EXISTS plans_account ON plans(account_id);
+        CREATE INDEX IF NOT EXISTS plans_execution
+            ON plans(execution_provider, execution_id);
+        """
+    )
 
 
 def _migrate_trades(db):

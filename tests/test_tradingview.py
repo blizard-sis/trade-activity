@@ -175,7 +175,7 @@ class TradingViewTests(unittest.TestCase):
         )
 
     def test_monthly_does_not_add_different_currencies(self):
-        from backend.domain.analytics import monthly_report
+        from backend.domain.reports import monthly_report
 
         base = dict(
             status="closed",
@@ -215,7 +215,7 @@ class TradingViewTests(unittest.TestCase):
         database.save_setting("position_table_settings", '{"visible_columns": ["entry_at"]}')
         self.assertEqual(
             self.client.get("/api/position-table-settings").get_json()["visible_columns"],
-            ["entry_at", "journal"],
+            ["entry_at", "journal", "exit_reason"],
         )
         self.client.put("/api/position-table-settings", json={"visible_columns": ["entry_at"]})
         self.assertEqual(
@@ -228,3 +228,22 @@ class TradingViewTests(unittest.TestCase):
         self.assertIn(
             "journal", self.client.get("/api/position-table-settings").get_json()["visible_columns"]
         )
+
+    def test_exit_reason_column_migrates_and_can_stay_hidden(self):
+        database.save_setting(
+            "position_table_settings",
+            '{"visible_columns": ["entry_at"], "journal_column_supported": true}',
+        )
+        self.assertEqual(
+            self.client.get("/api/position-table-settings").get_json()["visible_columns"],
+            ["entry_at", "exit_reason"],
+        )
+        for columns in (["entry_at", "exit_reason"], ["entry_at"]):
+            response = self.client.put(
+                "/api/position-table-settings", json={"visible_columns": columns}
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                self.client.get("/api/position-table-settings").get_json()["visible_columns"],
+                columns,
+            )

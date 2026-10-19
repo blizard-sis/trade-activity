@@ -6,6 +6,8 @@ import {
   resultClass,
 } from "../../shared/format";
 
+import { exitReasonLabel } from "./model";
+
 export const POSITION_COLUMNS = [
   {
     key: "entry_at",
@@ -49,7 +51,12 @@ export const POSITION_COLUMNS = [
     sort: "quantity",
     render: (item) => formatQuantity(item.entry_quantity),
   },
-  { key: "remaining", label: "Остаток", render: (item) => formatQuantity(item.remaining) },
+  {
+    key: "remaining",
+    label: "Остаток",
+    sort: "remaining",
+    render: (item) => formatQuantity(item.remaining),
+  },
   {
     key: "entry_price",
     label: "Цена входа",
@@ -58,21 +65,25 @@ export const POSITION_COLUMNS = [
   },
   {
     key: "exit_price",
+    sort: "exit_price",
     label: "Цена выхода",
     render: (item) => formatPrice(item.exit_price, item.price_precision, item.currency),
   },
   {
     key: "gross_result",
+    sort: "gross_result",
     label: "Результат",
     render: (item) => formatMoney(item.gross_result, item.result_currency),
   },
   {
     key: "commission",
+    sort: "commission",
     label: "Комиссия",
     render: (item) => formatMoney(item.commission, item.commission_currency),
   },
   {
     key: "net_result",
+    sort: "net_result",
     label: "Чистыми",
     render: (item) => (
       <span className={resultClass(item.net_result)}>
@@ -88,16 +99,33 @@ export const POSITION_COLUMNS = [
       <span className={item.status}>{item.status === "closed" ? "Закрыта" : "Открыта"}</span>
     ),
   },
-  { key: "order_count", label: "Ордеров", render: (item) => item.order_count ?? "—" },
+  {
+    key: "exit_reason",
+    sort: "exit_reason",
+    label: "Причина выхода",
+    align: "text-left",
+    render: exitReasonLabel,
+  },
+  {
+    key: "order_count",
+    label: "Ордеров",
+    sort: "order_count",
+    render: (item) => item.order_count ?? "—",
+  },
   {
     key: "journal",
-    label: "Дневник",
+    label: "План",
     align: "text-left",
-    render: (item) => (
-      <a className="journal-link" href={`/journal?position=${encodeURIComponent(item.id)}`}>
-        Открыть разбор ↗
-      </a>
-    ),
+    render: (item) => {
+      const href = item.plan
+        ? `/journal?plan=${encodeURIComponent(item.plan.id)}`
+        : `/journal?position=${encodeURIComponent(item.id)}`;
+      return (
+        <a className="journal-link" href={href}>
+          {item.plan ? "Открыть план ↗" : "Создать план ↗"}
+        </a>
+      );
+    },
   },
 ];
 

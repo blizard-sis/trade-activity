@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { summarizeMonths } from "../src/features/reports/model.js";
+import { summarizeReport } from "../src/features/reports/model.js";
 import { createRequestQueue } from "../src/shared/api/queue.js";
 
 test("report totals weight positions and keep currencies separate", () => {
-  const result = summarizeMonths([
+  const result = summarizeReport([
     { positions: 2, wins: 2, takes: 1, stops: 0, currency: "USD", net_result: 10 },
     { positions: 8, wins: 0, takes: 1, stops: 2, currency: "RUB", net_result: -20 },
     { positions: 0, wins: 0, takes: 0, stops: 0, currency: "USD", net_result: 5 },
@@ -16,7 +16,7 @@ test("report totals weight positions and keep currencies separate", () => {
     winRate: 20,
     cleanWinRate: 50,
   });
-  assert.deepEqual(summarizeMonths([]), {
+  assert.deepEqual(summarizeReport([]), {
     takes: 0,
     stops: 0,
     net: {},
@@ -48,4 +48,23 @@ test("settings writes wait for preceding operations and recover after failure", 
   await rejected;
   assert.equal(await second, "done");
   assert.deepEqual(events, ["save", "reset"]);
+});
+
+test("report filters migrate and grouping preserves range and instruments", async () => {
+  const { normalizeFilters, changeGrouping } = await import("../src/features/reports/model.js");
+  const monthly = normalizeFilters({
+    account: ["one", "two"],
+    ticker_mode: "exclude",
+    ticker: "BR",
+    month_from: "2024-02",
+    month_to: "2024-02",
+  });
+  const daily = changeGrouping(monthly, "day");
+  assert.equal(daily.period_from, "2024-02-01");
+  assert.equal(daily.period_to, "2024-02-29");
+  assert.deepEqual(daily.account, ["one", "two"]);
+  assert.equal(daily.ticker_mode, "exclude");
+  assert.equal(daily.ticker, "BR");
+  assert.deepEqual(changeGrouping(daily, "month"), monthly);
+  assert.equal(changeGrouping(normalizeFilters({}), "day").period_to, "");
 });

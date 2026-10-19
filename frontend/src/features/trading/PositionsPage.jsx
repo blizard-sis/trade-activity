@@ -42,6 +42,8 @@ export function PositionsPage() {
         positions={positions}
         visibleColumns={visibleColumns}
         onSort={sortBy}
+        sort={filters.sort}
+        sortDirection={filters.direction_sort}
         error={error}
       />
     </Layout>

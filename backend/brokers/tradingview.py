@@ -152,6 +152,7 @@ def parse_files(files, account_id, account_name):
                 instrument_name=symbol,
                 direction=direction,
                 entry_at=entry_at,
+                entry_trade_id=entry["Order ID"],
                 exit_at=exit_at,
                 entry_quantity=qty,
                 exit_quantity=qty if closed else 0,

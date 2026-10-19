@@ -13,6 +13,12 @@ dist/
 
 # Локальная база
 *.sqlite3
+*.sqlite3.bak-*
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Скриншоты планов
+data/
 
 # Frontend
 frontend/node_modules/

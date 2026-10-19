@@ -2,13 +2,13 @@ import { Table } from "@mantine/core";
 import { Message } from "../../../shared/components/Message";
 import { formatMoney, formatMonth, formatPercent, resultClass } from "../../../shared/format";
 
-export function MonthlyTable({ months, error }) {
+export function TradingReportTable({ rows, error, groupBy, loading }) {
   return (
     <div className="table-card">
       <Table striped highlightOnHover withTableBorder horizontalSpacing="md" verticalSpacing="sm">
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Месяц</Table.Th>
+            <Table.Th>{groupBy === "day" ? "День" : "Месяц"}</Table.Th>
             <Table.Th>Позиций</Table.Th>
             <Table.Th>Прибыльных</Table.Th>
             <Table.Th>Убыточных</Table.Th>
@@ -25,9 +25,13 @@ export function MonthlyTable({ months, error }) {
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {months.map((row) => (
-            <Table.Tr key={`${row.month}-${row.currency}`}>
-              <Table.Td>{formatMonth(row.month)}</Table.Td>
+          {rows.map((row) => (
+            <Table.Tr key={`${row.period}-${row.currency}`}>
+              <Table.Td>
+                {row.period.length === 10
+                  ? row.period.split("-").reverse().join(".")
+                  : formatMonth(row.period)}
+              </Table.Td>
               <Table.Td>{row.positions}</Table.Td>
               <Table.Td>{row.wins}</Table.Td>
               <Table.Td>{row.losses}</Table.Td>
@@ -49,7 +53,8 @@ export function MonthlyTable({ months, error }) {
           ))}
         </Table.Tbody>
       </Table>
-      {!error && months.length === 0 && (
+      {loading && <Message>Загрузка отчёта…</Message>}
+      {!loading && !error && rows.length === 0 && (
         <Message>Нет закрытых позиций для выбранных фильтров</Message>
       )}
     </div>

@@ -2,7 +2,7 @@ import unittest
 
 import test_journal
 
-from backend.domain.analytics import monthly_report
+from backend.domain.reports import monthly_report
 from backend.domain.winrate import win_rates
 
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppShell, Button, Group, NavLink, Stack, Text, Title, Tooltip } from "@mantine/core";
-import routes from "../../../routes.json";
+import routes from "./routes.json";
 
 export function Layout({ title, subtitle, action, children }) {
   const [collapsed, setCollapsed] = useState(() => {
@@ -35,15 +35,17 @@ export function Layout({ title, subtitle, action, children }) {
             {collapsed ? "→" : "← Свернуть меню"}
           </Button>
           <nav id="main-navigation" aria-label="Главное меню">
-            {routes.map(({ path: href, icon, label }) => (
+            {routes.map(({ path: href, aliases = [], icon, label }) => (
               <Tooltip key={href} label={label} disabled={!collapsed} position="right">
                 <NavLink
                   href={href}
                   label={collapsed ? icon : label}
                   leftSection={collapsed ? null : icon}
-                  active={window.location.pathname === href}
+                  active={[href, ...aliases].includes(window.location.pathname)}
                   aria-label={label}
-                  aria-current={window.location.pathname === href ? "page" : undefined}
+                  aria-current={
+                    [href, ...aliases].includes(window.location.pathname) ? "page" : undefined
+                  }
                 />
               </Tooltip>
             ))}

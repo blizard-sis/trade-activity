@@ -1,0 +1,154 @@
+.plans-workspace {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.plans-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-height: calc(100vh - 170px);
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+  position: sticky;
+  top: 16px;
+}
+
+.plan-list-scroll {
+  overflow-y: auto;
+  min-height: 120px;
+}
+
+.plan-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-list-item {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: var(--mantine-color-text);
+}
+
+.plan-list-item:hover {
+  background: var(--mantine-color-gray-0);
+}
+
+.plan-list-item.active {
+  background: var(--mantine-color-blue-0);
+  box-shadow: inset 3px 0 var(--mantine-color-blue-7);
+}
+
+.plan-list-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.plan-list-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.plan-list-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.plan-list-title {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.plan-list-meta {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.plan-list-result {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.plans-main {
+  min-width: 0;
+}
+
+.plan-detail {
+  min-width: 0;
+}
+
+.plan-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+.plan-summary strong {
+  color: var(--mantine-color-text);
+  font-size: 15px;
+}
+
+.plan-attachments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.plan-attachment {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-gray-0);
+}
+
+.plan-thumb {
+  display: block;
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-gray-2);
+}
+
+.plan-placeholder {
+  text-align: center;
+}
+
+@media (max-width: 1000px) {
+  .plans-workspace {
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 820px) {
+  .plans-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plans-sidebar {
+    position: static;
+    max-height: 460px;
+  }
+}

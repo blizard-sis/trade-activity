@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "trade-activity"
 version = "1.0.0"
-description = "Локальная история сделок T-Bank с группировкой позиций и помесячным отчётом"
+description = "Локальная история сделок с планами, группировкой позиций и отчётом по месяцам и дням"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

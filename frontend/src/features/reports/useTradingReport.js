@@ -2,21 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { loadAccounts } from "../../shared/api/accounts";
 import { useNotificationError } from "../../shared/notifications";
 import { api } from "./api";
-import { summarizeMonths } from "./model";
+import { DEFAULT_FILTERS, normalizeFilters, changeGrouping, summarizeReport } from "./model";
 
-const DEFAULT_FILTERS = {
-  account: "",
-  ticker_mode: "all",
-  ticker: "",
-  month_from: "",
-  month_to: "",
-};
-
-export function useMonthlyReport() {
+export function useTradingReport() {
   const [accounts, setAccounts] = useState([]);
   const [tickers, setTickers] = useState([]);
   const [filters, setFilters] = useState(null);
-  const [months, setMonths] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState([]);
   const [error, setError] = useNotificationError();
   const pendingSave = useRef(false);
 
@@ -24,12 +17,12 @@ export function useMonthlyReport() {
     const controller = new AbortController();
     Promise.all([
       loadAccounts({ signal: controller.signal }),
-      api.loadMonthlyFilters({ signal: controller.signal }),
+      api.loadReportFilters({ signal: controller.signal }),
     ])
       .then(([loadedAccounts, saved]) => {
         if (controller.signal.aborted) return;
         setAccounts(loadedAccounts);
-        setFilters({ ...DEFAULT_FILTERS, ...saved });
+        setFilters(normalizeFilters(saved));
       })
       .catch((requestError) => {
         if (!controller.signal.aborted) setError(requestError.message);
@@ -53,41 +46,48 @@ export function useMonthlyReport() {
 
   useEffect(() => {
     if (!filters) return;
+    setRows([]);
+    setLoading(true);
     const controller = new AbortController();
     api
-      .monthly(filters, { signal: controller.signal })
+      .report(filters, { signal: controller.signal })
       .then((report) => {
         if (controller.signal.aborted) return;
-        setMonths(report);
+        setRows(report);
         setError("");
       })
       .catch((requestError) => {
         if (!controller.signal.aborted) setError(requestError.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
 
     if (pendingSave.current) {
       pendingSave.current = false;
-      api.saveMonthlyFilters(filters).catch((requestError) => setError(requestError.message));
+      api.saveReportFilters(filters).catch((requestError) => setError(requestError.message));
     }
     return () => controller.abort();
   }, [filters, setError]);
 
-  const totals = useMemo(() => summarizeMonths(months), [months]);
+  const totals = useMemo(() => summarizeReport(rows), [rows]);
 
   function updateFilter(name, value) {
     pendingSave.current = true;
-    setFilters((current) => ({ ...current, [name]: value }));
+    setFilters((current) =>
+      name === "group_by" ? changeGrouping(current, value) : { ...current, [name]: value },
+    );
   }
 
   async function clearFilters() {
     pendingSave.current = false;
     setFilters(DEFAULT_FILTERS);
     try {
-      await api.clearMonthlyFilters();
+      await api.clearReportFilters();
     } catch (requestError) {
       setError(requestError.message);
     }
   }
 
-  return { accounts, tickers, filters, months, error, totals, updateFilter, clearFilters };
+  return { accounts, tickers, filters, rows, loading, error, totals, updateFilter, clearFilters };
 }

@@ -5,10 +5,10 @@ const enqueueSettings = createRequestQueue();
 
 export const api = {
   tickers: (account, options) => request(`/api/tickers?${queryString({ account })}`, options),
-  monthly: (filters, options) => request(`/api/monthly?${queryString(filters)}`, options),
-  loadMonthlyFilters: (options) => request("/api/monthly-filters", options),
-  saveMonthlyFilters: (filters) =>
-    enqueueSettings(() => writeJson("/api/monthly-filters", "PUT", filters)),
-  clearMonthlyFilters: () =>
-    enqueueSettings(() => request("/api/monthly-filters", { method: "DELETE" })),
+  report: (filters, options) => request(`/api/reports/trading?${queryString(filters)}`, options),
+  loadReportFilters: (options) => request("/api/report-filters", options),
+  saveReportFilters: (filters) =>
+    enqueueSettings(() => writeJson("/api/report-filters", "PUT", filters)),
+  clearReportFilters: () =>
+    enqueueSettings(() => request("/api/report-filters", { method: "DELETE" })),
 };

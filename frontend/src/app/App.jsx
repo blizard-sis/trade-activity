@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import routes from "../../../routes.json";
+import routes from "./routes.json";
 import { Message } from "../shared/components/Message";
 import { Layout } from "./Layout";
 
@@ -10,10 +10,12 @@ const pages = {
     })),
   ),
   reports: lazy(() =>
-    import("../features/reports/MonthlyPage").then((module) => ({ default: module.MonthlyPage })),
+    import("../features/reports/TradingReportPage").then((module) => ({
+      default: module.TradingReportPage,
+    })),
   ),
   journal: lazy(() =>
-    import("../features/journal/JournalPage").then((module) => ({ default: module.JournalPage })),
+    import("../features/plans/PlansPage").then((module) => ({ default: module.PlansPage })),
   ),
   "data-transfer": lazy(() =>
     import("../features/data-transfer/DataTransferPage").then((module) => ({
@@ -28,7 +30,9 @@ const pages = {
 };
 
 export default function App() {
-  const route = routes.find(({ path }) => path === window.location.pathname);
+  const route = routes.find(({ path, aliases = [] }) =>
+    [path, ...aliases].includes(window.location.pathname),
+  );
   if (!route) {
     return (
       <Layout title="Страница не найдена">

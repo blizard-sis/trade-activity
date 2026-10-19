@@ -2,7 +2,15 @@ import { Table, UnstyledButton } from "@mantine/core";
 import { Message } from "../../../shared/components/Message";
 import { POSITION_COLUMNS } from "../columns";
 
-export function PositionsTable({ positions, visibleColumns, onSort, error, loading }) {
+export function PositionsTable({
+  positions,
+  visibleColumns,
+  onSort,
+  sort,
+  sortDirection,
+  error,
+  loading,
+}) {
   const selectedPosition = new URLSearchParams(window.location.search).get("position");
   const displayedColumns = POSITION_COLUMNS.filter((column) => visibleColumns.includes(column.key));
   return (
@@ -20,11 +28,26 @@ export function PositionsTable({ positions, visibleColumns, onSort, error, loadi
             {displayedColumns.map((column) => (
               <Table.Th
                 key={column.key}
+                aria-sort={
+                  column.sort && column.sort === sort
+                    ? sortDirection === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : undefined
+                }
                 className={`${column.sort ? "sortable" : ""} ${column.align || ""}`}
               >
                 {column.sort ? (
-                  <UnstyledButton fw={600} fz="xs" onClick={() => onSort(column.sort)}>
-                    {column.label}
+                  <UnstyledButton
+                    type="button"
+                    fw={600}
+                    fz="xs"
+                    onClick={() => onSort(column.sort)}
+                  >
+                    {column.label}{" "}
+                    <span aria-hidden="true">
+                      {column.sort === sort ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}
+                    </span>
                   </UnstyledButton>
                 ) : (
                   column.label

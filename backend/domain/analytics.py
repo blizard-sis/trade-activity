@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass, field
 from itertools import groupby
 
-from .winrate import exit_category, win_rates
+from .winrate import exit_category
 
 FUTURES_TICKER = re.compile(r"^(.+)[FGHJKMNQUVXZ]\d$")
 
@@ -32,6 +32,7 @@ class OpenPosition:
     direction: str
     entry_side: str
     entry_at: str
+    entry_trade_id: str
     currency: str
     commission_currency: str
     result_currency: str
@@ -60,6 +61,7 @@ class OpenPosition:
             direction=direction,
             entry_side=trade["side"],
             entry_at=trade["executed_at"],
+            entry_trade_id=trade["trade_id"],
             currency=trade["currency"],
             commission_currency=trade["commission_currency"],
             result_currency=trade["payment_currency"],
@@ -98,6 +100,7 @@ class OpenPosition:
             "instrument_name": self.instrument_name,
             "direction": self.direction,
             "entry_at": self.entry_at,
+            "entry_trade_id": self.entry_trade_id,
             "exit_at": self.exit_at,
             "entry_quantity": self.entry_quantity,
             "exit_quantity": self.exit_quantity,
@@ -164,6 +167,10 @@ def filter_positions(positions, filters):
         if filters.get(name):
             positions = [item for item in positions if predicate(item, filters[name])]
 
+    return positions
+
+
+def sort_positions(positions, filters):
     sort_fields = {
         "date": "entry_at",
         "exit": "exit_at",
@@ -171,74 +178,45 @@ def filter_positions(positions, filters):
         "ticker": "ticker",
         "direction": "direction",
         "quantity": "entry_quantity",
+        "remaining": "remaining",
         "entry": "entry_price",
+        "exit_price": "exit_price",
+        "gross_result": "gross_result",
+        "commission": "commission",
+        "net_result": "net_result",
         "status": "status",
+        "order_count": "order_count",
     }
-    field = sort_fields.get(filters.get("sort"), "entry_at")
-    reverse = filters.get("direction_sort") != "asc"
-    return sorted(
-        positions, key=lambda item: (item[field] is not None, item[field]), reverse=reverse
-    )
+    exit_labels = {
+        "stop": "Стоп-лосс",
+        "take": "Тейк-профит",
+        "manual": "Вышел руками",
+        "mixed": "Смешанный выход",
+        "unknown": "Не определено",
+    }
+    sort = filters.get("sort")
+    field = sort_fields.get(sort, "entry_at")
 
+    def sort_value(position):
+        if sort == "exit_reason":
+            return (
+                exit_labels[exit_category(position)]
+                if position["status"] == "closed"
+                else "Позиция открыта"
+            ).casefold()
+        value = position.get(field)
+        if field == "ticker":
+            value = value or position.get("instrument_name")
+        return value.casefold() if isinstance(value, str) else value
 
-def monthly_report(positions, filters):
-    positions = _filter_monthly_positions(positions, filters)
-    months = {}
-
+    # Partition first so missing values stay last in both sort directions.
+    populated = []
+    missing = []
     for position in positions:
-        month = position["exit_at"][:7]
-        currency = (position["result_currency"] or "rub").upper()
-        row = months.setdefault(
-            (month, currency),
-            {
-                "month": month,
-                "currency": currency,
-                "positions": 0,
-                "wins": 0,
-                "losses": 0,
-                "takes": 0,
-                "stops": 0,
-                "manual": 0,
-                "mixed": 0,
-                "unknown": 0,
-                "gross_result": 0,
-                "commission": 0,
-                "net_result": 0,
-            },
-        )
-        row["positions"] += 1
-        row["wins"] += position["net_result"] > 0
-        row["losses"] += position["net_result"] < 0
-        category = exit_category(position)
-        row[{"take": "takes", "stop": "stops"}.get(category, category)] += 1
-        row["gross_result"] += position["gross_result"]
-        row["commission"] += position["commission"]
-        row["net_result"] += position["net_result"]
-
-    for row in months.values():
-        row.update(win_rates(row["positions"], row["wins"], row["takes"], row["stops"]))
-
-    return sorted(months.values(), key=lambda row: row["month"], reverse=True)
-
-
-def _filter_monthly_positions(positions, filters):
-    result = []
-    for position in positions:
-        if position["status"] != "closed":
-            continue
-
-        family = ticker_family(position["ticker"])
-        ticker = filters.get("ticker")
-        mode = filters.get("ticker_mode")
-        if ticker and mode == "only" and family != ticker:
-            continue
-        if ticker and mode == "exclude" and family == ticker:
-            continue
-
-        month = position["exit_at"][:7]
-        if filters.get("month_from") and month < filters["month_from"]:
-            continue
-        if filters.get("month_to") and month > filters["month_to"]:
-            continue
-        result.append(position)
-    return result
+        value = sort_value(position)
+        if value is None or value == "":
+            missing.append(position)
+        else:
+            populated.append((value, position))
+    populated.sort(key=lambda item: item[0], reverse=filters.get("direction_sort") != "asc")
+    return [position for _, position in populated] + missing

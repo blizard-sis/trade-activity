@@ -1,17 +1,12 @@
 """Estimate an exit from plan levels and fills, independently of storage or HTTP."""
 
-from decimal import Decimal, InvalidOperation
+from .numbers import parse_number
 
 JOURNAL_FIELDS = ("entry_note", "exit_note", "planned_stop", "planned_take")
 
 
 def _number(value):
-    try:
-        # Grouping spaces include NBSP and narrow NBSP from copied prices.
-        number = Decimal("".join(str(value).split()).replace(",", "."))
-        return number if number.is_finite() else None
-    except InvalidOperation:
-        return None
+    return parse_number(value)
 
 
 def assess_exit(position):
