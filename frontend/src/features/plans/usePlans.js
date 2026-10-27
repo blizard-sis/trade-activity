@@ -196,6 +196,20 @@ export function usePlans() {
     return result;
   }
 
+  async function deletePlan() {
+    if (!selectedId) return null;
+    const result = await run(() => api.deletePlan(selectedId), "План удалён.");
+    if (result) {
+      setSelectedId("");
+      setDetail(null);
+      setMode("empty");
+      setSeed(null);
+      replaceUrl(new URLSearchParams());
+      refresh();
+    }
+    return result;
+  }
+
   async function updatePlan(values) {
     if (!selectedId) return;
     const updated = await run(() => api.update(selectedId, values), "План сохранён.");
@@ -264,15 +278,6 @@ export function usePlans() {
     }
   }
 
-  async function synchronize() {
-    const result = await run(() => api.sync(), null);
-    if (!result) return;
-    notifySuccess(
-      `Синхронизация T-Bank завершена. Счетов: ${result.accounts}. Добавлено: ${result.added}. Обновлено: ${result.updated}.`,
-    );
-    refresh();
-  }
-
   const loadAvailable = useCallback(
     async (search = "") => {
       setAvailableLoading(true);
@@ -311,11 +316,11 @@ export function usePlans() {
     cancelCreate,
     createPlan,
     updatePlan,
+    deletePlan,
     linkPosition,
     unlinkPosition,
     uploadFiles,
     removeAttachment,
-    synchronize,
     loadAvailable,
     refresh,
   };

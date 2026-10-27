@@ -10,5 +10,4 @@ export const api = {
     enqueueSettings(() => writeJson("/api/position-table-settings", "PUT", settings)),
   clearPositionTableSettings: () =>
     enqueueSettings(() => request("/api/position-table-settings", { method: "DELETE" })),
-  sync: () => request("/api/sync", { method: "POST" }),
 };

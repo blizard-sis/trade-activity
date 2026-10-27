@@ -12,14 +12,21 @@ export function DataTransferPage() {
     error,
     importing,
     exporting,
+    syncing,
     importTradingView,
     exportPositions,
+    synchronize,
     updateFilter,
   } = useDataTransfer();
   return (
     <Layout
       title="Импорт и экспорт"
-      subtitle="Загрузка сделок из TradingView и выгрузка позиций в JSON"
+      subtitle="Синхронизация T-Bank, загрузка сделок из TradingView и выгрузка позиций в JSON"
+      action={
+        <Button variant="filled" loading={syncing} onClick={synchronize}>
+          Синхронизировать T-Bank
+        </Button>
+      }
     >
       <Stack gap="lg">
         {error && <Alert color="red">{error}</Alert>}

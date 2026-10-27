@@ -68,7 +68,14 @@ class PositionSortingTests(unittest.TestCase):
         with patch("backend.database.initialize"), patch("backend.load_config", return_value={}):
             client = create_app().test_client()
         rows = [
-            {"id": reason, "status": "closed", "direction": "long", "exit_prices": [price]}
+            {
+                "id": reason,
+                "status": "closed",
+                "direction": "long",
+                "planned_entry": "100",
+                "entry_price": "100",
+                "exit_prices": [price],
+            }
             for reason, price in (("take", 110), ("stop", 90), ("unknown", 100), ("manual", 100))
         ]
         notes = {

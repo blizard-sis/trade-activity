@@ -69,8 +69,7 @@ export function PlanForm({
           <Paper withBorder p="sm" bg="gray.0">
             <Text fw={600}>{seedPosition.ticker || seedPosition.instrument_name}</Text>
             <Text size="xs" c="dimmed">
-              {seedPosition.account_name} · {directionLabel(seedPosition.direction)} ·{" "}
-              {formatDate(seedPosition.entry_at)}
+              {seedPosition.account_name} · {directionLabel(seedPosition.direction)}
             </Text>
             <Text size="sm">
               Вход{" "}
@@ -79,12 +78,20 @@ export function PlanForm({
                 seedPosition.price_precision,
                 seedPosition.currency,
               )}{" "}
-              · Выход{" "}
+              <Text component="span" size="xs" c="dimmed">
+                {formatDate(seedPosition.entry_at)}
+              </Text>
+            </Text>
+            <Text size="sm">
+              Выход{" "}
               {formatPrice(
                 seedPosition.exit_price,
                 seedPosition.price_precision,
                 seedPosition.currency,
-              )}
+              )}{" "}
+              <Text component="span" size="xs" c="dimmed">
+                {formatDate(seedPosition.exit_at)}
+              </Text>
             </Text>
             <Text size="sm">
               Чистыми{" "}

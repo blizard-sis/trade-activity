@@ -7,6 +7,7 @@ export const api = {
     request(`/api/plans/available-positions?${queryString(filters)}`, options),
   create: (body) => writeJson("/api/plans", "POST", body),
   update: (id, body) => writeJson(`/api/plans/${encodeURIComponent(id)}`, "PUT", body),
+  deletePlan: (id) => request(`/api/plans/${encodeURIComponent(id)}`, { method: "DELETE" }),
   link: (id, positionId) =>
     writeJson(`/api/plans/${encodeURIComponent(id)}/positions`, "POST", {
       position_id: positionId,
@@ -22,5 +23,4 @@ export const api = {
     }),
   removeAttachment: (id) =>
     request(`/api/attachments/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  sync: () => request("/api/sync", { method: "POST" }),
 };

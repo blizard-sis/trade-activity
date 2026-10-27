@@ -50,6 +50,11 @@ def update_plan(plan_id):
     return jsonify(service.update_plan(plan_id, request.get_json(silent=True)))
 
 
+@plans_api.delete("/<plan_id>")
+def delete_plan(plan_id):
+    return jsonify(service.delete_plan(plan_id))
+
+
 @plans_api.post("/<plan_id>/positions")
 def link_position(plan_id):
     body = request.get_json(silent=True)

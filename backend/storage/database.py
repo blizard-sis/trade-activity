@@ -205,6 +205,9 @@ def initialize():
         _migrate_plans(db)
         _migrate_plan_numbers(db)
         _migrate_plan_attachments(db)
+        link_columns = {row["name"] for row in db.execute("PRAGMA table_info(plan_positions)")}
+        if "exit_reason_override" in link_columns:
+            db.execute("ALTER TABLE plan_positions DROP COLUMN exit_reason_override")
         db.execute("DROP TABLE IF EXISTS plan_events")
         db.execute("PRAGMA optimize")
 

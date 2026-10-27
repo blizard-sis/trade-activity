@@ -10,6 +10,7 @@ export function useDataTransfer() {
   const [error, setError] = useNotificationError();
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -25,6 +26,22 @@ export function useDataTransfer() {
 
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }));
+  }
+
+  async function synchronize() {
+    try {
+      setSyncing(true);
+      setError("");
+      const result = await api.sync();
+      notifySuccess(
+        `Синхронизация T-Bank завершена. Счетов: ${result.accounts}. Сделок добавлено: ${result.added}. Обновлено: ${result.updated}. Без изменений: ${result.unchanged}.`,
+      );
+      setAccounts(await loadAccounts());
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSyncing(false);
+    }
   }
 
   async function importTradingView(importFiles, paperName) {
@@ -43,6 +60,9 @@ export function useDataTransfer() {
         summary.push(
           "Текущие заявки, снимок позиций и журнал активности не импортируются отдельно.",
         );
+      }
+      if (result.partial) {
+        summary.push(`Частичные закрытия пропущены: ${result.partial}.`);
       }
       notifySuccess(summary.join(" "));
       setAccounts(await loadAccounts());
@@ -79,8 +99,10 @@ export function useDataTransfer() {
     error,
     importing,
     exporting,
+    syncing,
     importTradingView,
     exportPositions,
+    synchronize,
     updateFilter,
   };
 }

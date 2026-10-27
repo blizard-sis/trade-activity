@@ -1,4 +1,4 @@
-import { Group, Paper, Stack, Tabs, Text, Title } from "@mantine/core";
+import { Button, Group, Paper, Stack, Tabs, Text, Title } from "@mantine/core";
 import { directionLabel } from "../model";
 import { NetValue } from "./NetValue";
 import { PlanAttachments } from "./PlanAttachments";
@@ -11,6 +11,7 @@ export function PlanDetail({
   accounts,
   busy,
   onUpdate,
+  onDelete,
   onLink,
   onUnlink,
   onUpload,
@@ -62,6 +63,27 @@ export function PlanDetail({
               </span>
             </Group>
           </div>
+          <Group gap="xs">
+            <Button
+              type="button"
+              variant="subtle"
+              color="red"
+              disabled={busy || plan.positions.length > 0}
+              title={
+                plan.positions.length ? "Сначала отвяжите привязанные позиции" : "Удалить план"
+              }
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Удалить план? Это также удалит его скриншоты. Действие нельзя отменить.",
+                  )
+                )
+                  onDelete();
+              }}
+            >
+              Удалить план
+            </Button>
+          </Group>
         </Group>
 
         <Tabs defaultValue="plan" mt="lg">

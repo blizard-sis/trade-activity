@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadAccounts } from "../../shared/api/accounts";
-import { notifySuccess, useNotificationError } from "../../shared/notifications";
+import { useNotificationError } from "../../shared/notifications";
 import { DEFAULT_POSITION_FILTERS } from "../../shared/positions/filters";
 import { api } from "./api";
 import { usePositionColumns } from "./usePositionColumns";
@@ -12,8 +12,6 @@ export function usePositions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useNotificationError();
   const { visibleColumns, toggleColumn, showAllColumns } = usePositionColumns(setError);
-  const [syncing, setSyncing] = useState(false);
-
   const [revision, setRevision] = useState(0);
   const reloadPositions = () => setRevision((value) => value + 1);
 
@@ -68,23 +66,6 @@ export function usePositions() {
     }));
   }
 
-  async function synchronize() {
-    try {
-      setSyncing(true);
-      setError("");
-      const result = await api.sync();
-      notifySuccess(
-        `Синхронизация T-Bank завершена. Счетов: ${result.accounts}. Сделок добавлено: ${result.added}. Обновлено: ${result.updated}. Без изменений: ${result.unchanged}.`,
-      );
-      setAccounts(await loadAccounts());
-      reloadPositions();
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setSyncing(false);
-    }
-  }
-
   return {
     accounts,
     filters,
@@ -92,10 +73,8 @@ export function usePositions() {
     loading,
     visibleColumns,
     error,
-    syncing,
     updateFilter,
     sortBy,
-    synchronize,
     toggleColumn,
     showAllColumns,
   };

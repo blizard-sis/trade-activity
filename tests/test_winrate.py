@@ -13,6 +13,8 @@ class WinRateTests(unittest.TestCase):
                 status="closed",
                 ticker="TEST",
                 direction="long",
+                planned_entry="100",
+                entry_price=100,
                 exit_at="2026-09-01",
                 result_currency="USD",
                 net_result=net,

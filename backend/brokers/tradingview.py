@@ -29,6 +29,8 @@ def timestamp(value):
 
 def parse_files(files, account_id, account_name):
     reports, orders, balances, ignored = [], {}, [], []
+    partial_groups = set()
+    partials = 0
     currency = None
     for filename, content in files:
         try:
@@ -75,7 +77,12 @@ def parse_files(files, account_id, account_name):
         raise ValueError("Добавьте непустой файл paper-trading-trade-history…csv (История сделок)")
     groups = {}
     for row in reports:
-        group = groups.setdefault((row["Symbol"], row["Trade number"]), {})
+        key = (row["Symbol"], row["Trade number"])
+        if row["Date and time"] == "Partial close":
+            partial_groups.add(key)
+            partials += 1
+            continue
+        group = groups.setdefault(key, {})
         kind = row["Type"]
         if kind not in ("Entry long", "Entry short", "Exit long", "Exit short"):
             raise ValueError(f"Неизвестный тип сделки: {kind}")
@@ -86,9 +93,25 @@ def parse_files(files, account_id, account_name):
             )
         group[role] = row
     positions = []
-    for (symbol, _), pair in groups.items():
-        if set(pair) != {"Entry", "Exit"}:
-            raise ValueError(f"{symbol}: отсутствует строка входа или выхода")
+    for key, pair in groups.items():
+        symbol = key[0]
+        if "Entry" not in pair:
+            raise ValueError(f"{symbol}: отсутствует строка входа")
+        if "Exit" not in pair:
+            if key not in partial_groups:
+                raise ValueError(f"{symbol}: отсутствует строка выхода")
+            entry = pair["Entry"]
+            direction = entry["Type"].split()[1]
+            pair["Exit"] = {
+                **entry,
+                "Type": f"Exit {direction}",
+                "Date and time": "Open",
+                "Order ID": "",
+                "Price": "—",
+                "Size (qty)": entry["Size (qty)"],
+                f"Net PnL {currency}": "0",
+                f"Commission {currency}": "0",
+            }
         entry, closing = pair["Entry"], pair["Exit"]
         direction = entry["Type"].split()[1]
         if closing["Type"] != f"Exit {direction}" or not entry["Order ID"]:
@@ -175,4 +198,4 @@ def parse_files(files, account_id, account_name):
         raise ValueError(
             "Несколько позиций с одним входом: этот формат частичных выходов пока не поддерживается"
         )
-    return positions, ignored
+    return positions, ignored, partials

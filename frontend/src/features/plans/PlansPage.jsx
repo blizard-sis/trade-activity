@@ -31,11 +31,11 @@ export function PlansPage() {
     cancelCreate,
     createPlan,
     updatePlan,
+    deletePlan,
     linkPosition,
     unlinkPosition,
     uploadFiles,
     removeAttachment,
-    synchronize,
     loadAvailable,
   } = usePlans();
   const [tab, setTab] = useState("plans");
@@ -65,9 +65,6 @@ export function PlansPage() {
     <Group gap="xs">
       <Button variant="default" onClick={() => startCreate()}>
         Новый план
-      </Button>
-      <Button variant="filled" loading={busy} onClick={synchronize}>
-        Синхронизировать
       </Button>
     </Group>
   );
@@ -110,7 +107,12 @@ export function PlansPage() {
                   Загрузка планов…
                 </Text>
               ) : (
-                <PlanList plans={plans} selectedId={selectedId} onSelect={selectPlan} />
+                <PlanList
+                  plans={plans}
+                  accounts={accounts}
+                  selectedId={selectedId}
+                  onSelect={selectPlan}
+                />
               )
             ) : (
               <UnplannedList
@@ -147,6 +149,7 @@ export function PlansPage() {
               accounts={accounts}
               busy={busy}
               onUpdate={updatePlan}
+              onDelete={deletePlan}
               onLink={linkPosition}
               onUnlink={unlinkPosition}
               onUpload={uploadFiles}

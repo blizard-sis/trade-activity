@@ -69,3 +69,28 @@ def summarize_positions(positions):
         "first_entry_at": min(entries) if entries else None,
         "last_exit_at": max(exits) if exits else None,
     }
+
+
+def _plan_list_group(plan):
+    summary = plan.get("summary") or {}
+    if not summary.get("positions"):
+        return 0
+    if summary.get("open"):
+        return 1
+    return 2
+
+
+def _plan_list_date(plan):
+    summary = plan.get("summary") or {}
+    if not summary.get("positions"):
+        return plan.get("created_at") or ""
+    if summary.get("open"):
+        return summary.get("first_entry_at") or plan.get("created_at") or ""
+    return summary.get("last_exit_at") or plan.get("created_at") or ""
+
+
+def sort_plans_for_list(plans):
+    """Ideas without positions first, then open positions, then closed history."""
+    ordered = sorted(plans, key=_plan_list_date, reverse=True)
+    ordered.sort(key=_plan_list_group)
+    return ordered

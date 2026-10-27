@@ -18,6 +18,7 @@ def get_journal_positions(filters):
         if plan:
             # The plan is the authoring layer; a per-position override wins.
             position["planned_stop"], position["planned_take"] = effective_levels(plan, link)
+            position["planned_entry"] = plan.get("entry_zone")
             position["plan"] = {"id": plan["id"], "title": plan["title"]}
         position["exit_assessment"] = assess_exit(position)
     return sort_positions(positions, filters)

@@ -3,11 +3,14 @@ import { formatDate } from "../../../shared/format";
 import { planMeta } from "../model";
 import { NetValue } from "./NetValue";
 
-export function PlanList({ plans, selectedId, onSelect }) {
+export function PlanList({ plans, accounts = [], selectedId, onSelect }) {
   return (
     <div className="plan-list">
       {plans.map((plan) => {
         const selected = plan.id === selectedId;
+        const account = accounts.find((item) => item.id === plan.account_id);
+        const platform =
+          account?.platform || plan.execution?.platform || plan.forecast?.platform || "";
         return (
           <UnstyledButton
             type="button"
@@ -23,7 +26,7 @@ export function PlanList({ plans, selectedId, onSelect }) {
                   <NetValue summary={plan.summary} />
                 </span>
               </span>
-              <span className="plan-list-meta">{planMeta(plan)}</span>
+              <span className="plan-list-meta">{planMeta(plan, platform)}</span>
               <span className="plan-list-meta">
                 {formatDate(plan.summary?.last_exit_at || plan.created_at)}
               </span>

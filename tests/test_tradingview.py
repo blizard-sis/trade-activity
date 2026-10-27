@@ -44,6 +44,29 @@ def report(open_position=False, invalid=False):
     return stream.getvalue().encode()
 
 
+def partial_report():
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(
+        [
+            "Symbol",
+            "Trade number",
+            "Type",
+            "Date and time",
+            "Order ID",
+            "Price",
+            "Size (qty)",
+            "Net PnL USD",
+            "Commission USD",
+        ]
+    )
+    writer.writerow(
+        ["TEST:FUT", "1", "Entry long", "Sep 1, 2026, 10:00", "100", "20", "1", "0", "0"]
+    )
+    writer.writerow(["TEST:FUT", "1", "Exit long", "Partial close", "", "—", "0.5", "0", "0"])
+    return stream.getvalue().encode()
+
+
 class TradingViewTests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
@@ -76,6 +99,16 @@ class TradingViewTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/monthly").get_json()[0]["currency"], "USD")
         self.assertEqual(self.client.get("/api/positions/export").status_code, 200)
         self.assertIn("TEST:FUT", self.client.get("/api/tickers").get_json())
+
+    def test_partial_close_is_skipped_and_position_stays_open(self):
+        result = self.upload(partial_report()).get_json()
+        self.assertEqual(result["added"], 1)
+        self.assertEqual(result["partial"], 1)
+        position = self.client.get("/api/positions").get_json()[0]
+        self.assertEqual(position["status"], "open")
+        self.assertEqual(position["entry_quantity"], 1)
+        self.assertEqual(position["remaining"], 1)
+        self.assertIsNone(position["exit_price"])
 
     def test_identical_import_does_not_rewrite_positions(self):
         self.upload()

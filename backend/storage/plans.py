@@ -216,3 +216,12 @@ def delete_attachment(attachment_id):
             return None
         db.execute("DELETE FROM plan_attachments WHERE id = ?", (attachment_id,))
         return dict(row)
+
+
+def delete_plan(plan_id):
+    with transaction() as db:
+        if not db.execute("SELECT 1 FROM plans WHERE id = ?", (plan_id,)).fetchone():
+            return False
+        db.execute("DELETE FROM plan_attachments WHERE plan_id = ?", (plan_id,))
+        db.execute("DELETE FROM plans WHERE id = ?", (plan_id,))
+        return True

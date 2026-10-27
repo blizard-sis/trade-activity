@@ -212,6 +212,32 @@ class PlansApiTests(unittest.TestCase):
         )
         self.assertEqual(self.client.post("/api/plans", json=[]).status_code, 400)
 
+    def test_delete_plan_without_positions_removes_attachments(self):
+        plan = self.client.post(
+            "/api/plans", json={"direction": "long", "forecast_ticker": "TEMP"}
+        ).get_json()
+        upload = self.client.post(
+            f"/api/plans/{plan['id']}/attachments",
+            data={"file": (io.BytesIO(PNG), "chart.png")},
+            content_type="multipart/form-data",
+        ).get_json()
+        path = self.attachments / upload["path"]
+        self.assertTrue(path.exists())
+
+        response = self.client.delete(f"/api/plans/{plan['id']}")
+
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(self.client.get(f"/api/plans/{plan['id']}").status_code, 404)
+        self.assertEqual(self.client.get(f"/api/attachments/{upload['id']}").status_code, 404)
+        self.assertFalse(path.exists())
+        self.assertEqual(self.client.delete("/api/plans/missing").status_code, 404)
+
+    def test_delete_plan_with_positions_is_rejected(self):
+        plan = self.create_from_position()
+        response = self.client.delete(f"/api/plans/{plan['id']}")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.client.get(f"/api/plans/{plan['id']}").status_code, 200)
+
     def test_attachment_upload_download_and_delete(self):
         plan = self.create_from_position()
         plan_id = plan["id"]

@@ -8,11 +8,12 @@ export function netParts(summary) {
   return Object.entries(summary?.net || {});
 }
 
-export function planMeta(plan) {
+export function planMeta(plan, platform = "") {
   const parts = [];
   const ticker = plan.forecast?.ticker || plan.execution?.ticker;
   if (ticker) parts.push(ticker);
   if (plan.direction) parts.push(directionLabel(plan.direction));
+  if (platform) parts.push(platform);
   const summary = plan.summary || {};
   if (summary.positions) {
     parts.push(`${summary.positions} поз.`);

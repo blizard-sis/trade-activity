@@ -16,6 +16,7 @@ from ..domain.plans import (
     effective_levels,
     entry_trade_id,
     plan_title,
+    sort_plans_for_list,
     summarize_positions,
 )
 from ..storage import plans as storage
@@ -128,6 +129,7 @@ def _link_values(plan_id, plan_row, position, source="manual"):
 def _decorate_position(position, plan_row, link):
     item = dict(position)
     stop, take = effective_levels(plan_row, link)
+    item["planned_entry"] = plan_row.get("entry_zone")
     item["planned_stop"] = stop
     item["planned_take"] = take
     item["exit_assessment"] = assess_exit(item)
@@ -175,16 +177,7 @@ def list_plans(filters):
         plan["summary"] = summarize_positions(linked)
         plan["position_ids"] = [position["id"] for position in linked]
         result.append(plan)
-    result.sort(
-        key=lambda plan: (
-            plan["summary"]["last_exit_at"]
-            or plan["summary"]["first_entry_at"]
-            or plan.get("created_at")
-            or ""
-        ),
-        reverse=True,
-    )
-    return result
+    return sort_plans_for_list(result)
 
 
 def available_positions(filters):
@@ -418,6 +411,24 @@ def unlink_position(plan_id, position_id):
     if not storage.delete_link_bundle(plan_id, position_id):
         raise LookupError("Позиция не привязана к этому плану")
     return _detail(storage.get_plan(plan_id))
+
+
+def delete_plan(plan_id):
+    row = storage.get_plan(plan_id)
+    if row is None:
+        raise LookupError("План не найден")
+    if storage.get_links_for_plan(plan_id):
+        raise ValueError("Нельзя удалить план с привязанными позициями. Сначала отвяжите их.")
+
+    attachments = storage.get_attachments(plan_id)
+    if not storage.delete_plan(plan_id):
+        raise LookupError("План не найден")
+    for attachment in attachments:
+        try:
+            _safe_attachment_path(attachment).unlink(missing_ok=True)
+        except LookupError:
+            pass
+    return {"deleted": plan_id}
 
 
 def _image_extension(data):
